@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Ticket Classification System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+        }
+        .category-badge {
+            font-size: 0.9em;
+            padding: 8px 15px;
+            border-radius: 20px;
+        }
+        .progress {
+            height: 10px;
+            border-radius: 5px;
+        }
+        .result-card {
+            transition: all 0.3s ease;
+        }
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        .textarea-autosize {
+            min-height: 120px;
+            resize: none;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <!-- Header -->
+                <div class="text-center mb-5">
+                    <h1 class="text-white display-4 fw-bold mb-3">
+                        <i class="fas fa-robot me-3"></i>AI Ticket Classifier
+                    </h1>
+                    <p class="text-white-50 lead">Automatically categorize customer support tickets using machine learning</p>
+                </div>
+
+                <!-- Main Card -->
+                <div class="card p-4 mb-4">
+                    <div class="row">
+                        <!-- Input Section -->
+                        <div class="col-md-6">
+                            <h4 class="mb-4"><i class="fas fa-ticket-alt me-2"></i>Classify Ticket</h4>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Ticket Text:</label>
+                                <textarea 
+                                    id="ticketText" 
+                                    class="form-control textarea-autosize" 
+                                    placeholder="Enter customer ticket text here..."
+                                    rows="5"
+                                ></textarea>
+                            </div>
+                            
+                            <button id="classifyBtn" class="btn btn-primary w-100 mb-3">
+                                <i class="fas fa-brain me-2"></i>Classify Ticket
+                            </button>
+                            
+                            <button id="clearBtn" class="btn btn-outline-secondary w-100">
+                                <i class="fas fa-eraser me-2"></i>Clear
+                            </button>
+
+                            <hr class="my-4">
+                            
+                            <h5 class="mb-3"><i class="fas fa-list me-2"></i>Supported Categories:</h5>
+                            <div class="row">
+                                {% for category in categories %}
+                                <div class="col-12 mb-2">
+                                    <span class="badge bg-primary category-badge">{{ category }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Results Section -->
+                        <div class="col-md-6">
+                            <h4 class="mb-4"><i class="fas fa-chart-bar me-2"></i>Classification Results</h4>
+                            <div id="results" class="fade-in">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-search fa-3x mb-3"></i>
+                                    <p>Enter ticket text to see classification results</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Batch Classification Section -->
+                <div class="card p-4">
+                    <h4 class="mb-4"><i class="fas fa-batch me-2"></i>Batch Classification</h4>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Multiple Tickets (JSON format):</label>
+                                <textarea 
+                                    id="batchTickets" 
+                                    class="form-control textarea-autosize" 
+                                    placeholder='[{"text": "Ticket 1 text"}, {"text": "Ticket 2 text"}]'
+                                    rows="5"
+                                ></textarea>
+                            </div>
+                            <button id="batchClassifyBtn" class="btn btn-success w-100">
+                                <i class="fas fa-cogs me-2"></i>Batch Classify
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <div id="batchResults"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const classifyBtn = document.getElementById('classifyBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const batchClassifyBtn = document.getElementById('batchClassifyBtn');
+            const ticketText = document.getElementById('ticketText');
+            const batchTickets = document.getElementById('batchTickets');
+            const resultsDiv = document.getElementById('results');
+            const batchResultsDiv = document.getElementById('batchResults');
+
+            // Classify single ticket
+            classifyBtn.addEventListener('click', async function() {
+                const text = ticketText.value.trim();
+                if (!text) {
+                    alert('Please enter ticket text');
+                    return;
+                }
+
+                classifyBtn.disabled = true;
+                classifyBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Classifying...';
+
+                try {
+                    const response = await fetch('/classify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ ticket_text: text })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        displayResults(data);
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                } catch (error) {
+                    alert('Classification failed: ' + error.message);
+                } finally {
+                    classifyBtn.disabled = false;
+                    classifyBtn.innerHTML = '<i class="fas fa-brain me-2"></i>Classify Ticket';
+                }
+            });
+
+            // Clear input
+            clearBtn.addEventListener('click', function() {
+                ticketText.value = '';
+                resultsDiv.innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <p>Enter ticket text to see classification results</p>
+                    </div>
+                `;
+            });
+
+            // Batch classification
+            batchClassifyBtn.addEventListener('click', async function() {
+                const ticketsText = batchTickets.value.trim();
+                if (!ticketsText) {
+                    alert('Please enter tickets in JSON format');
+                    return;
+                }
+
+                let tickets;
+                try {
+                    tickets = JSON.parse(ticketsText);
+                    if (!Array.isArray(tickets)) {
+                        throw new Error('Input must be a JSON array');
+                    }
+                } catch (error) {
+                    alert('Invalid JSON format: ' + error.message);
+                    return;
+                }
+
+                batchClassifyBtn.disabled = true;
+                batchClassifyBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+
+                try {
+                    const response = await fetch('/batch_classify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ tickets: tickets })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        displayBatchResults(data);
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                } catch (error) {
+                    alert('Batch classification failed: ' + error.message);
+                } finally {
+                    batchClassifyBtn.disabled = false;
+                    batchClassifyBtn.innerHTML = '<i class="fas fa-cogs me-2"></i>Batch Classify';
+                }
+            });
+
+            // Display single classification results
+            function displayResults(data) {
+                const categoryColors = {
+                    'Technical Support': 'primary',
+                    'Returns': 'success',
+                    'Billing': 'warning',
+                    'General Inquiry': 'info',
+                    'Complaint': 'danger'
+                };
+
+                let html = `
+                    <div class="result-card card border-0 shadow-sm mb-4">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-${categoryColors[data.category] || 'secondary'} fs-6">
+                                    ${data.category}
+                                </span>
+                                <span class="text-success fw-bold">${data.confidence}% confident</span>
+                            </div>
+                            <p class="text-muted">${data.description}</p>
+                            
+                            <h6 class="mt-4 mb-3">Confidence Breakdown:</h6>
+                `;
+
+                data.top_categories.forEach(item => {
+                    const width = Math.min(item.probability, 100);
+                    html += `
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>${item.category}</span>
+                                <span>${item.probability}%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-${categoryColors[item.category] || 'secondary'}" 
+                                     style="width: ${width}%"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <h6><i class="fas fa-code me-2"></i>Processed Text:</h6>
+                            <p class="text-muted small">${data.processed_text || 'No processing applied'}</p>
+                        </div>
+                    </div>
+                `;
+
+                resultsDiv.innerHTML = html;
+            }
+
+            // Display batch classification results
+            function displayBatchResults(data) {
+                if (data.results.length === 0) {
+                    batchResultsDiv.innerHTML = '<div class="alert alert-info">No valid tickets to classify</div>';
+                    return;
+                }
+
+                const categoryColors = {
+                    'Technical Support': 'primary',
+                    'Returns': 'success',
+                    'Billing': 'warning',
+                    'General Inquiry': 'info',
+                    'Complaint': 'danger'
+                };
+
+                let html = `
+                    <h5>Results: ${data.total_classified} tickets classified</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Confidence</th>
+                                    <th>Preview</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                data.results.forEach(result => {
+                    html += `
+                        <tr>
+                            <td>
+                                <span class="badge bg-${categoryColors[result.category] || 'secondary'}">
+                                    ${result.category}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="fw-bold ${result.confidence > 80 ? 'text-success' : result.confidence > 60 ? 'text-warning' : 'text-danger'}">
+                                    ${result.confidence}%
+                                </span>
+                            </td>
+                            <td>
+                                <small class="text-muted" title="${result.original_text}">
+                                    ${result.original_text.substring(0, 50)}${result.original_text.length > 50 ? '...' : ''}
+                                </small>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                batchResultsDiv.innerHTML = html;
+            }
+
+            // Auto-resize textareas
+            const textareas = document.querySelectorAll('.textarea-autosize');
+            textareas.forEach(textarea => {
+                textarea.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = (this.scrollHeight) + 'px';
+                });
+            });
+        });
+    </script>
+</body>
+</html>

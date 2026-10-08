@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Classification System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Header with Background Image */
+        .hero-section {
+            background: linear-gradient(rgba(102, 126, 234, 0.8), rgba(118, 75, 162, 0.8)), 
+                        url('https://images.unsplash.com/photo-1552664730-d307ca884978?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80');
+            background-size: cover;
+            background-position: center;
+            color: white;
+            padding: 150px 0;
+            text-align: center;
+            position: relative;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+        
+        /* General Styles */
+        .feature-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            margin-bottom: 30px;
+            height: 100%;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .feature-icon {
+            font-size: 3rem;
+            color: #4e73df;
+            margin-bottom: 20px;
+        }
+        .category-badge {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            margin: 5px;
+        }
+        .cta-section {
+            background: #f8f9fa;
+            padding: 80px 0;
+        }
+        .footer {
+            background: #2c3e50;
+            color: white;
+            padding: 40px 0;
+        }
+        
+        /* How It Works Section */
+        .process-step {
+            text-align: center;
+            padding: 30px 20px;
+        }
+        .step-number {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            line-height: 50px;
+            border-radius: 50%;
+            background: #4e73df;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        /* Team Section */
+        .team-section {
+            padding: 80px 0;
+            background: #fff;
+        }
+        .team-member {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .team-img {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 5px solid #e9ecef;
+            margin: 0 auto 20px;
+            transition: transform 0.3s ease;
+        }
+        .team-img:hover {
+            transform: scale(1.05);
+        }
+        .team-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .team-title {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        /* Section Headers */
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        .section-header h2 {
+            font-weight: 700;
+            margin-bottom: 15px;
+            position: relative;
+            display: inline-block;
+        }
+        .section-header h2:after {
+            content: '';
+            position: absolute;
+            width: 60px;
+            height: 3px;
+            background: #4e73df;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            .hero-section {
+                padding: 100px 0;
+            }
+            .hero-section h1 {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-primary" href="#">
+                <i class="fas fa-robot me-2"></i>TicketAI
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a href="{{ url_for('login') }}" class="btn btn-outline-primary me-2">Login</a>
+                <a href="{{ url_for('register') }}" class="btn btn-primary">Register</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section with Background Image -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8 hero-content">
+                    <h1 class="display-4 fw-bold mb-4">AI-Powered Ticket Classification System</h1>
+                    <p class="lead mb-5">Automatically categorize customer support tickets with machine learning and natural language processing. Save time and improve response efficiency.</p>
+                    <div class="d-flex gap-3 justify-content-center flex-wrap">
+                        <a href="{{ url_for('register') }}" class="btn btn-light btn-lg px-4">Get Started</a>
+                        <a href="#how-it-works" class="btn btn-outline-light btn-lg px-4">Learn More</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-5 bg-light">
+        <div class="container">
+            <div class="section-header">
+                <h2>How It Works</h2>
+                <p class="lead text-muted">Follow these simple steps to classify your support tickets efficiently</p>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 process-step">
+                    <div class="step-number">1</div>
+                    <h5>Register & Login</h5>
+                    <p class="text-muted">Create your account or login to access the ticket classification system</p>
+                    <div class="mt-4">
+                        <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-sm">Register</a>
+                        <a href="{{ url_for('login') }}" class="btn btn-primary btn-sm ms-2">Login</a>
+                    </div>
+                </div>
+                <div class="col-md-4 process-step">
+                    <div class="step-number">2</div>
+                    <h5>Submit Ticket Text</h5>
+                    <p class="text-muted">Enter your customer support ticket description or question in the dashboard</p>
+                    <div class="mt-4">
+                        <i class="fas fa-keyboard text-primary fa-2x"></i>
+                    </div>
+                </div>
+                <div class="col-md-4 process-step">
+                    <div class="step-number">3</div>
+                    <h5>Get AI Classification</h5>
+                    <p class="text-muted">Our system analyzes the text and provides instant category detection with confidence scores</p>
+                    <div class="mt-4">
+                        <i class="fas fa-robot text-primary fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Categories Section -->
+    <section class="py-5">
+        <div class="container">
+            <div class="section-header">
+                <h2>Supported Categories</h2>
+                <p class="lead text-muted">Our system can classify tickets into these main categories</p>
+            </div>
+            
+            <div class="row">
+                {% for category, description in categories.items() %}
+                <div class="col-lg-6 mb-4">
+                    <div class="card feature-card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="category-badge 
+                                    {% if category == 'Technical Support' %}bg-primary
+                                    {% elif category == 'Returns' %}bg-warning
+                                    {% elif category == 'Billing' %}bg-info
+                                    {% elif category == 'General Inquiry' %}bg-success
+                                    {% else %}bg-danger{% endif %} text-white">
+                                    {{ category }}
+                                </span>
+                            </div>
+                            <p class="text-muted">{{ description }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Team Section -->
+    <section class="team-section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Meet Our Team</h2>
+                <p class="lead text-muted">The talented individuals behind our AI classification system</p>
+            </div>
+            
+            <div class="row justify-content-center">
+                <div class="col-lg-3 col-md-6">
+                    <div class="team-member">
+                        <img src="https://i.postimg.cc/c49RVgx9/ganesh.jpg" 
+                             alt="Alex Johnson" class="team-img">
+                        <h5 class="team-name">Ganesh Kote</h5>
+                        <p class="team-title">Team Leader</p>
+                        
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="team-member">
+                        <img src="https://i.postimg.cc/pXT8YWfY/advaith.jpg" 
+                             alt="Sarah Williams" class="team-img">
+                        <h5 class="team-name">Advaith</h5>
+                        <p class="team-title">Team Member</p>
+                        
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="team-member">
+                        <img src="https://i.postimg.cc/BvGXy4Kk/mihir.jpg" 
+                             alt="Michael Chen" class="team-img">
+                        <h5 class="team-name">Mihir Shukla </h5>
+                        <p class="team-title">Team Member</p>
+                        
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="team-member">
+                        <img src="https://i.postimg.cc/t4GqRD4f/irfan.jpg" 
+                             alt="David Rodriguez" class="team-img">
+                        <h5 class="team-name">Irfan shekh</h5>
+                        <p class="team-title">Team Member</p>
+                       
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8 text-center">
+                    <h2 class="fw-bold mb-3">Ready to Streamline Your Support?</h2>
+                    <p class="lead text-muted mb-4">Join thousands of businesses using AI to improve their customer support efficiency</p>
+                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-5">
+                        <i class="fas fa-rocket me-2"></i>Get Started Free
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-4 mb-4 mb-lg-0">
+                    <h5><i class="fas fa-robot me-2"></i>TicketAI</h5>
+                    <p>AI-powered ticket classification system for modern customer support teams. Our system helps businesses automatically categorize and prioritize support tickets.</p>
+                    <div class="social-links mt-3">
+                        <a href="#" class="text-light me-3"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="text-light me-3"><i class="fab fa-facebook"></i></a>
+                        <a href="#" class="text-light me-3"><i class="fab fa-linkedin"></i></a>
+                        <a href="#" class="text-light"><i class="fab fa-github"></i></a>
+                    </div>
+                </div>
+                <div class="col-lg-2 mb-4 mb-lg-0">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#how-it-works" class="text-light text-decoration-none">How It Works</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">Features</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">Pricing</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-3 mb-4 mb-lg-0">
+                    <h5>Categories</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-light text-decoration-none">Technical Support</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">Returns</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">Billing</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">General Inquiry</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">Complaint</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-3">
+                    <h5>Contact Us</h5>
+                    <ul class="list-unstyled">
+                        <li class="text-light"><i class="fas fa-envelope me-2"></i> support@ticketai.com</li>
+                        <li class="text-light"><i class="fas fa-phone me-2"></i> +91 9865125698</li>
+                        <li class="text-light"><i class="fas fa-map-marker-alt me-2"></i> 123 Tech Street, Karnataka, India</li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-4" style="border-color: rgba(255,255,255,0.1);">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-0">&copy; 2025 TicketAI. All rights reserved.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="#" class="text-light text-decoration-none me-3">Privacy Policy</a>
+                    <a href="#" class="text-light text-decoration-none">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

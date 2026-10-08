@@ -1,0 +1,28 @@
+# Environment Variables (Secrets)
+.env
+.env.local
+.env.*.local
+
+# Virtual Environment
+env/
+venv/
+.venv/
+ENV/
+
+# Python cache & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# SQLite Database (contains local user accounts & tickets)
+*.db
+*.sqlite3
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
