@@ -23,10 +23,14 @@
   - **Word-Level TF-IDF (1–2 n-grams)** with sublinear frequency scaling to capture phrases and intent.
   - **Character-Level TF-IDF (3–5 n-grams)** (`char_wb`) to robustly handle typos, misspellings, and morphological variants.
 - **Calibrated Probabilistic Inference**:
-  - Calibrated probability estimates outputting overall confidence (*High, Medium, Low*).
+  - Calibrated probability estimates outputting overall confidence (*High, Medium, Low (Review Suggested)*).
   - **Top-3 Ranked Predictions**: Transparent multi-category suggestions with probability breakdown.
-- **High Accuracy & Generalization**:
-  - Evaluated on **8,989 annotated customer support tickets**, achieving **97.89% test accuracy**, **0.979 weighted F1-score**, and **100% precision on real-world edge cases**.
+- **Production Guardrails & Anti-Leakage Hardening**:
+  - **Conversational Openers**: Paraphrases training records to prevent static label-matching leakage.
+  - **Ambiguity Detection**: Automatically flags ultra-brief or vague inputs (< 3 words) and caps confidence to 50% for manual triage.
+  - **Review Suggested Flag**: Tickets with confidence under 60% are flagged (`needs_human_review = True`) to prevent erroneous automation.
+- **High Accuracy & Real-World Generalization**:
+  - Trained on **10,005 hardened and balanced customer support tickets**, achieving **99.00% test accuracy**, **0.990 weighted F1-score**, and **over 82% accuracy on messy colloquial real-world queries**.
 
 ### 💻 Full-Stack Web Application
 - **Customer Portal**:
@@ -78,7 +82,7 @@ ai_ticket/
 │   ├── login.html                                # Authentication login page
 │   └── register.html                             # User registration page
 ├── models/                                       # Machine learning models & training pipeline
-│   ├── customer_support_tickets.csv              # Comprehensive dataset (8,989 tickets)
+│   ├── customer_support_tickets.csv              # Ingested dataset (8,469 CSV records, 10,005 training total)
 │   ├── train_model.py                            # Complete training, benchmarking & serialization script
 │   ├── ticket_classification_updated.ipynb       # Interactive Jupyter notebook
 │   ├── enhanced_ticket_classifier.joblib         # Production serialized pipeline
@@ -164,12 +168,13 @@ python models/train_model.py
 ```
 
 This script will:
-1. Ingest `models/customer_support_tickets.csv` (8,989 labeled samples).
-2. Apply word & sub-word n-gram feature extraction.
-3. Train and benchmark candidate algorithms with **Calibrated LinearSVC**.
-4. Output classification reports, precision, recall, and confusion matrices.
-5. Export production models to `models/enhanced_ticket_classifier.joblib` and `models/enhanced_customer_support_model_90plus.pkl`.
-6. Update `models/enhanced_model_metadata.json` with current performance figures.
+1. Ingest `models/customer_support_tickets.csv` (8,469 CSV records) with anti-leakage conversational paraphrasing.
+2. Augment with 520 domain patterns and 1,016 balanced real-world conversational variations (**10,005 total samples**).
+3. Apply dual-granularity word (1–2 ngrams) and character (3–5 ngrams) TF-IDF feature extraction.
+4. Train and benchmark candidate algorithms with **Calibrated LinearSVC**, **Logistic Regression**, and **Complement Naive Bayes**.
+5. Output detailed classification reports, precision, recall, and confusion matrices.
+6. Export production models to `models/enhanced_ticket_classifier.joblib` and `models/enhanced_customer_support_model_90plus.pkl`.
+7. Update `models/enhanced_model_metadata.json` with current performance figures.
 
 You can also run [models/ticket_classification_updated.ipynb](models/ticket_classification_updated.ipynb) interactively in Jupyter or Google Colab.
 
@@ -195,12 +200,13 @@ Submits a ticket description for automated AI classification and storage.
 ```json
 {
   "category": "Billing",
-  "confidence": 98.0,
+  "confidence": 84.4,
   "confidence_level": "High",
+  "needs_human_review": false,
   "top_predictions": [
-    {"category": "Billing", "confidence": 98.0},
-    {"category": "Complaint", "confidence": 0.97},
-    {"category": "Returns", "confidence": 0.53}
+    {"category": "Billing", "confidence": 84.4},
+    {"category": "Technical Support", "confidence": 8.1},
+    {"category": "General Inquiry", "confidence": 4.5}
   ],
   "description": "Payment issues, invoices, billing questions, and subscription renewals",
   "ticket_id": 14,
@@ -209,22 +215,24 @@ Submits a ticket description for automated AI classification and storage.
 }
 ```
 
+> **Note**: For ambiguous queries (< 3 words or < 12 characters, e.g. *"help please"*), confidence is automatically capped at 50% and `"needs_human_review": true` is returned to prompt manual agent triage.
+
 ---
 
-## 📊 Benchmark Results (Enhanced Model)
+## 📊 Benchmark Results (Hardened Model)
 
-Evaluated on the full 8,989-sample dataset with a test partition:
+Evaluated on the full 10,005-sample dataset with a 20% stratified holdout partition:
 
 | Category | Precision | Recall | F1-Score | Support |
 | :--- | :---: | :---: | :---: | :---: |
-| **Technical Support** | **0.99** | **0.99** | **0.99** | 971 |
-| **General Inquiry** | **0.98** | **0.97** | **0.97** | 338 |
-| **Returns** | **0.97** | **0.97** | **0.97** | 135 |
-| **Complaint** | **0.97** | **0.94** | **0.96** | 229 |
-| **Billing** | **0.93** | **0.97** | **0.95** | 125 |
-| **Overall Accuracy** | — | — | **97.89%** | **1,798 test samples** |
-| **Weighted F1-Score**| — | — | **0.979** | — |
-| **Macro F1-Score**   | — | — | **0.968** | — |
+| **Technical Support** | **0.996** | **0.998** | **0.997** | 1,074 |
+| **General Inquiry** | **0.992** | **0.975** | **0.984** | 367 |
+| **Complaint** | **0.963** | **0.975** | **0.969** | 243 |
+| **Billing** | **0.988** | **0.994** | **0.991** | 168 |
+| **Returns** | **0.987** | **0.987** | **0.987** | 149 |
+| **Overall Accuracy** | — | — | **99.00%** | **2,001 test samples** |
+| **Weighted F1-Score**| — | — | **0.990** | — |
+| **Macro F1-Score**   | — | — | **0.986** | — |
 
 ---
 

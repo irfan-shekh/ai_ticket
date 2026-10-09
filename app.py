@@ -465,17 +465,20 @@ def rows_to_dict_list(rows):
     return [row_to_dict(row) for row in rows]
 
 def classify_ticket(text, return_top_k=False):
-    """Classify ticket using production trained pipeline with calibrated confidence"""
+    """Classify ticket using production trained pipeline with calibrated confidence and safety guards"""
     try:
-        processed_text = preprocess_text(text)
+        raw_text = str(text or "").strip()
+        processed_text = preprocess_text(raw_text)
+        raw_words = raw_text.split()
+        is_ambiguous = len(raw_words) < 3 or len(raw_text) < 12
         
         # 1. Use high-accuracy production model if loaded
         if production_model is not None:
             # Handle empty/whitespace text edge case
             if not processed_text:
                 default_cat = "General Inquiry"
-                default_preds = [{'category': default_cat, 'confidence': 50.0}]
-                return (default_cat, 50.0, default_preds) if return_top_k else (default_cat, 50.0)
+                default_preds = [{'category': default_cat, 'confidence': 40.0}]
+                return (default_cat, 40.0, default_preds) if return_top_k else (default_cat, 40.0)
             
             probs = production_model.predict_proba([processed_text])[0]
             classes = production_model.classes_
@@ -492,6 +495,11 @@ def classify_ticket(text, return_top_k=False):
             
             best_category = top_predictions[0]['category']
             best_confidence = top_predictions[0]['confidence']
+            
+            # Production Guardrail: Cap confidence for extremely brief/vague queries (< 3 words)
+            if is_ambiguous and best_confidence > 55.0:
+                best_confidence = 50.0
+                top_predictions[0]['confidence'] = 50.0
             
             if return_top_k:
                 return best_category, best_confidence, top_predictions
@@ -717,12 +725,14 @@ def classify_ticket_route():
         if notification_email:
             email_sent = send_ticket_creation_email(notification_email, ticket_id, predicted_category, ticket_text, confidence)
         
-        confidence_level = "High" if confidence >= 75 else "Medium" if confidence >= 50 else "Low"
+        needs_human_review = bool(confidence < 60.0 or len(ticket_text.split()) < 3)
+        confidence_level = "High" if confidence >= 75 else "Medium" if confidence >= 60 else "Low (Review Suggested)"
         
         return jsonify({
             'category': predicted_category,
             'confidence': round(confidence, 2),
             'confidence_level': confidence_level,
+            'needs_human_review': needs_human_review,
             'top_predictions': top_predictions,
             'description': category_descriptions.get(predicted_category, ''),
             'ticket_id': ticket_id,

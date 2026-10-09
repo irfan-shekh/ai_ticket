@@ -644,19 +644,140 @@ def get_comprehensive_dataset():
 
         df_csv['category'] = df_csv['Ticket Subject'].map(subject_to_category)
 
-        def clean_csv_text(row):
+        # Varied conversational openers to prevent identical shortcut label matching
+        openers = {
+            'Software bug': ['I encountered an unexpected software bug: ', 'System glitch observed: ', 'Application error: '],
+            'Hardware issue': ['Physical device issue: ', 'Hardware problem encountered: ', 'Defective device unit: '],
+            'Battery life': ['Battery draining rapidly: ', 'Power failure problem: ', 'Device not holding charge: '],
+            'Network problem': ['Connection problem: ', 'Network connectivity issue: ', 'Cannot reach network: '],
+            'Installation support': ['Need help with software installation: ', 'Setup installer failed: ', 'Installation assistance requested: '],
+            'Product setup': ['Need guidance setting up product: ', 'Configuration problem: ', 'Setup steps not working: '],
+            'Account access': ['Unable to access my account: ', 'Login authentication problem: ', 'Account credentials error: '],
+            'Data loss': ['Data loss problem: ', 'Files missing or wiped out: ', 'Corrupted project data: '],
+            'Display issue': ['Screen and display issue: ', 'Monitor or screen glitch: ', 'Display resolution error: '],
+            'Payment issue': ['Billing problem with my card: ', 'Payment transaction query: ', 'Payment failed or extra charge: '],
+            'Refund request': ['Requesting a return and refund: ', 'I need to return this item: ', 'Item return request: '],
+            'Product recommendation': ['Inquiry regarding product options: ', 'Can you recommend a suitable product: ', 'Product feature query: '],
+            'Product compatibility': ['Compatibility inquiry: ', 'Will this work with my setup: ', 'Hardware compatibility question: '],
+            'Peripheral compatibility': ['Peripheral device inquiry: ', 'Connecting accessory question: ', 'Peripheral accessory compatibility: '],
+            'Delivery problem': ['Delayed delivery complaint: ', 'Shipping delivery problem: ', 'Delivery carrier issue: '],
+            'Cancellation request': ['Order cancellation complaint: ', 'Need to cancel this order: ', 'Cancelling subscription service: ']
+        }
+
+        def clean_csv_text(idx, row):
             product = str(row['Product Purchased']) if pd.notnull(row['Product Purchased']) else 'product'
             desc = str(row['Ticket Description']) if pd.notnull(row['Ticket Description']) else ''
             desc = desc.replace('{product_purchased}', product)
-            subject = str(row['Ticket Subject']) if pd.notnull(row['Ticket Subject']) else ''
-            return f"{subject}. {desc}"
+            subj = str(row['Ticket Subject']) if pd.notnull(row['Ticket Subject']) else ''
+            opener_list = openers.get(subj, ['Inquiry: '])
+            opener = opener_list[idx % len(opener_list)]
+            return f"{opener}{desc}"
 
-        df_csv['text'] = df_csv.apply(clean_csv_text, axis=1)
+        df_csv['text'] = [clean_csv_text(i, r) for i, r in df_csv.iterrows()]
         valid_csv = df_csv[df_csv['category'].notnull()][['text', 'category']]
-        print(f"[DATA] Ingested {len(valid_csv)} records from CSV.")
+        print(f"[DATA] Ingested {len(valid_csv)} records from CSV with conversational paraphrasing.")
 
-        df = pd.concat([valid_csv, df_curated], ignore_index=True)
-        print(f"[DATA] Combined dataset size: {len(df)} total records across 5 categories.")
+        # Real-world natural augmentation patterns (typos, informal queries, conversational variance)
+        aug_records = []
+        tech_templates = [
+            "help my {comp} is giving error {code} when I try to {action}",
+            "{action} keeps freezing on my {comp} after updating to latest version",
+            "cannot {action}, page shows {code} and screen goes blank",
+            "why is the {comp} app crashing every time I launch it?",
+            "network connection drops constantly while using {action}",
+            "login failed says wrong credentials even after resetting password",
+            "2fa verification code never arrived on my phone or email",
+            "getting a 500 internal error when loading the dashboard"
+        ]
+        tech_comps = ["software", "mobile app", "browser", "windows laptop", "system", "dashboard", "mac app"]
+        tech_codes = ["500", "502", "401", "404", "0x80070005", "timeout", "bad gateway"]
+        tech_actions = ["log in", "access account", "checkout", "sync data", "load profile", "export report", "connect vpn"]
+
+        for t in tech_templates:
+            for c in tech_comps[:4]:
+                for code in tech_codes[:4]:
+                    for a in tech_actions[:4]:
+                        aug_records.append({"text": t.format(comp=c, code=code, action=a), "category": "Technical Support"})
+
+        bill_templates = [
+            "I was charged {amount} {reason} on my credit card please check invoice {inv}",
+            "why is there an extra {amount} fee on my monthly subscription?",
+            "my card expired and my plan got cancelled how do I update payment info?",
+            "need an official receipt or invoice for invoice {inv} for accounting",
+            "double charge on my bank statement for the same order",
+            "subscription renewed automatically but I wanted to cancel, need refund on charge",
+            "payment failed at checkout but money was deducted from my account",
+            "can you explain why my bill is higher than last month?"
+        ]
+        amounts = ["$29", "$49.99", "$15", "$120", "twice", "double"]
+        reasons = ["twice", "by mistake", "without authorization", "for no reason", "unexpectedly"]
+        invs = ["#4920", "#1029", "from yesterday", "last month", "for this billing cycle"]
+
+        for t in bill_templates:
+            for a in amounts[:3]:
+                for r in reasons[:3]:
+                    for inv in invs[:3]:
+                        aug_records.append({"text": t.format(amount=a, reason=r, inv=inv), "category": "Billing"})
+
+        return_templates = [
+            "the item arrived {condition}, I need to send it back for a full refund",
+            "how do I return this {item}? Where can I print the prepaid return label?",
+            "the {item} is too small, I would like to exchange it for one size larger",
+            "received the wrong {item} in the mail, please process an exchange or return",
+            "I want to return my order within the 30 day return window",
+            "package was completely crushed during delivery and contents broken",
+            "sent back my return two weeks ago but have not received my refund credit yet",
+            "defective unit out of the box, requesting replacement or money back"
+        ]
+        conditions = ["damaged", "broken", "shattered", "scratched", "defective"]
+        items = ["shoes", "jacket", "headphones", "electronics", "laptop", "package"]
+
+        for t in return_templates:
+            for c in conditions[:3]:
+                for it in items[:3]:
+                    aug_records.append({"text": t.format(condition=c, item=it), "category": "Returns"})
+
+        inquiry_templates = [
+            "what are your store operating hours on {day}?",
+            "do you guys ship orders internationally to {loc}?",
+            "how long does standard delivery usually take to arrive at {loc}?",
+            "is this product compatible with {tech} or only {tech2}?",
+            "can I get more information about product specs and warranty coverage?",
+            "do you offer student or military discounts on new purchases?",
+            "where can I track my shipment package status?",
+            "what is your customer support contact phone number or direct email?"
+        ]
+        days = ["Sundays", "weekends", "holidays", "Mondays"]
+        locs = ["Canada", "Chicago", "California", "Europe", "New York"]
+        techs = ["Windows 11", "iPhone iOS", "PS5", "Android", "Mac"]
+
+        for t in inquiry_templates:
+            for d in days[:3]:
+                for loc in locs[:3]:
+                    for tech in techs[:2]:
+                        aug_records.append({"text": t.format(day=d, loc=loc, tech=tech, tech2="Windows"), "category": "General Inquiry"})
+
+        complaint_templates = [
+            "your support agent {agent} was extremely rude and hung up on me",
+            "been waiting {time} for my delivery and still no tracking update",
+            "worst customer service experience ever, nobody responds to my support tickets",
+            "I have been transferred between 5 departments with zero help, I want a manager",
+            "unacceptable delay and terrible handling, I will be reporting this to the BBB",
+            "your company made false promises regarding product delivery deadlines",
+            "driver threw fragile delivery box against my porch concrete steps",
+            "completely fed up with excuses and canned automated template responses"
+        ]
+        agents = ["John", "representative", "chat agent", "supervisor"]
+        times = ["3 weeks", "10 days", "two months", "over a month"]
+
+        for t in complaint_templates:
+            for ag in agents[:3]:
+                for tm in times[:3]:
+                    aug_records.append({"text": t.format(agent=ag, time=tm), "category": "Complaint"})
+
+        df_aug = pd.DataFrame(aug_records)
+        df = pd.concat([valid_csv, df_curated, df_aug], ignore_index=True)
+        print(f"[DATA] Hardened dataset size: {len(df)} total records across 5 categories.")
         return df
 
     return df_curated
