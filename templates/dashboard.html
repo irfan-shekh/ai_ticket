@@ -3,488 +3,403 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TicketAI - Dashboard</title>
+    <title>Customer Dashboard — TicketAI</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <style>
-        :root {
-            --primary: #667eea;
-            --secondary: #764ba2;
-            --success: #198754;
-            --warning: #ffc107;
-            --danger: #dc3545;
-            --info: #0dcaf0;
+        .dashboard-layout {
+            display: flex;
+            min-height: 100vh;
         }
-        
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        .sidebar {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            height: 100vh;
+        .app-sidebar {
+            width: 270px;
+            background: rgba(11, 16, 28, 0.95);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             position: fixed;
-            padding: 0;
-            box-shadow: 3px 0 10px rgba(0,0,0,0.1);
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            padding: 24px 16px;
         }
-        
-        .sidebar .nav-link {
-            color: rgba(255,255,255,0.8);
-            padding: 15px 20px;
-            border-left: 4px solid transparent;
-            transition: all 0.3s;
+        .main-workspace {
+            margin-left: 270px;
+            flex: 1;
+            padding: 28px 36px;
+            min-height: 100vh;
         }
-        
-        .sidebar .nav-link:hover, .sidebar .nav-link.active {
-            color: white;
-            background-color: rgba(255,255,255,0.1);
-            border-left-color: white;
+        .nav-pill-custom {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            margin-bottom: 6px;
+            border: 1px solid transparent;
         }
-        
-        .sidebar .nav-link i {
-            margin-right: 10px;
+        .nav-pill-custom:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .nav-pill-custom.active {
+            color: #ffffff;
+            background: rgba(99, 102, 241, 0.15);
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+        }
+        .nav-pill-custom i {
             width: 20px;
             text-align: center;
+            font-size: 1.1rem;
         }
-        
-        .main-content {
-            margin-left: 250px;
+        .ticket-card {
+            background: var(--bg-card);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-md);
             padding: 20px;
+            margin-bottom: 16px;
+            border-left: 4px solid var(--primary);
+            transition: all 0.25s ease;
         }
-        
-        .navbar-custom {
-            background: white;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+        .ticket-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: rgba(255, 255, 255, 0.2);
         }
-        
-        .card-custom {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            transition: transform 0.3s;
-            margin-bottom: 20px;
-        }
-        
-        .card-custom:hover {
-            transform: translateY(-5px);
-        }
-        
-        .category-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 20px;
-            color: white;
-            font-weight: bold;
-        }
-        
-        .category-tech {
-            background-color: var(--primary);
-        }
-        
-        .category-returns {
-            background-color: var(--warning);
-        }
-        
-        .category-billing {
-            background-color: var(--success);
-        }
-        
-        .category-inquiry {
-            background-color: var(--info);
-        }
-        
-        .category-complaint {
-            background-color: var(--danger);
-        }
-        
+        .ticket-tech { border-left-color: var(--tech-color) !important; }
+        .ticket-billing { border-left-color: var(--billing-color) !important; }
+        .ticket-returns { border-left-color: var(--returns-color) !important; }
+        .ticket-inquiry { border-left-color: var(--inquiry-color) !important; }
+        .ticket-complaint { border-left-color: var(--complaint-color) !important; }
+
         .confidence-bar {
-            width: 100%;
-            height: 10px;
-            background-color: #e9ecef;
-            border-radius: 5px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
             overflow: hidden;
+            margin-top: 6px;
         }
-        
         .confidence-fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            border-radius: 5px;
+            background: var(--primary-gradient);
+            border-radius: 4px;
+            transition: width 0.6s ease;
         }
-        
-        .ticket-card {
-            border-left: 4px solid;
+
+        .dropdown-menu-dark {
+            background-color: #111827;
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-lg);
         }
-        
-        .ticket-tech {
-            border-left-color: var(--primary);
-        }
-        
-        .ticket-returns {
-            border-left-color: var(--warning);
-        }
-        
-        .ticket-billing {
-            border-left-color: var(--success);
-        }
-        
-        .ticket-inquiry {
-            border-left-color: var(--info);
-        }
-        
-        .ticket-complaint {
-            border-left-color: var(--danger);
-        }
-        
-        .status-badge {
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 0.8rem;
-        }
-        
-        .status-open {
-            background-color: #d1ecf1;
-            color: #0c5460;
-        }
-        
-        .status-pending {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        
-        .status-resolved {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        
-        .stats-card {
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .stats-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-        
-        .stats-label {
-            color: #6c757d;
+        .dropdown-item {
+            color: var(--text-secondary);
+            padding: 8px 16px;
             font-size: 0.9rem;
         }
-        
-        .btn-gradient {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            border: none;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            transition: all 0.3s;
-        }
-        
-        .btn-gradient:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            color: white;
-        }
-        
-        .ticket-text-preview {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            color: #6c757d;
-        }
-        
-        .logout-btn {
-            color: rgba(255,255,255,0.8);
-            padding: 15px 20px;
-            border-left: 4px solid transparent;
-            transition: all 0.3s;
-            text-decoration: none;
-            display: block;
-            width: 100%;
-        }
-        
-        .logout-btn:hover {
-            color: white;
-            background-color: rgba(255,255,255,0.1);
-            border-left-color: white;
+        .dropdown-item:hover {
+            background: rgba(99, 102, 241, 0.15);
+            color: #ffffff;
         }
 
-        .resolution-notes {
-            background-color: #f8f9fa;
-            border-left: 3px solid #28a745;
-            padding: 10px 15px;
-            margin-top: 10px;
-            border-radius: 5px;
-        }
-
-        .resolved-info {
-            font-size: 0.85rem;
-            color: #6c757d;
-            margin-top: 5px;
-        }
-
-        @media (max-width: 768px) {
-            .sidebar {
+        @media (max-width: 992px) {
+            .app-sidebar {
+                position: relative;
                 width: 100%;
                 height: auto;
-                position: relative;
             }
-            
-            .main-content {
+            .main-workspace {
                 margin-left: 0;
+                padding: 20px;
+            }
+            .dashboard-layout {
+                flex-direction: column;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-3 col-lg-2 sidebar">
-                <div class="d-flex flex-column align-items-center align-items-sm-start px-3 pt-4">
-                    <h2 class="mb-4"><i class="fas fa-ticket-alt"></i> TicketAI</h2>
-                    
-                    <ul class="nav nav-pills flex-column mb-sm-auto mb-0 align-items-center align-items-sm-start w-100" id="menu">
-                        <li class="nav-item w-100">
-                            <a href="#dashboard" class="nav-link active" data-bs-toggle="tab">
-                                <i class="fas fa-tachometer-alt"></i> Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item w-100">
-                            <a href="#create-ticket" class="nav-link" data-bs-toggle="tab">
-                                <i class="fas fa-plus-circle"></i> Create Ticket
-                            </a>
-                        </li>
-                        <li class="nav-item w-100">
-                            <a href="#ticket-history" class="nav-link" data-bs-toggle="tab">
-                                <i class="fas fa-history"></i> Ticket History
-                            </a>
-                        </li>
-                        <li class="nav-item w-100 mt-4">
-                            <a href="{{ url_for('logout') }}" class="nav-link logout-btn">
-                                <i class="fas fa-sign-out-alt me-2"></i>Logout
-                            </a>
-                        </li>
-                    </ul>
+    <div class="dashboard-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar">
+            <div>
+                <!-- Brand Logo -->
+                <div class="d-flex align-items-center gap-2 mb-4 px-2">
+                    <div style="width: 38px; height: 38px; border-radius: 10px; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(99,102,241,0.5);">
+                        <i class="fas fa-ticket-alt text-white"></i>
+                    </div>
+                    <div>
+                        <span class="fw-bold fs-5 text-white lh-1">Ticket<span class="gradient-text">AI</span></span>
+                        <div class="text-muted" style="font-size: 0.7rem;">Customer Portal</div>
+                    </div>
+                </div>
+
+                <!-- Nav Menu List -->
+                <div class="nav flex-column" id="menu">
+                    <a href="#dashboard" class="nav-pill-custom active" onclick="switchTab('#dashboard')">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#create-ticket" class="nav-pill-custom" onclick="switchTab('#create-ticket')">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>Create Ticket</span>
+                    </a>
+                    <a href="#ticket-history" class="nav-pill-custom" onclick="switchTab('#ticket-history')">
+                        <i class="fas fa-history"></i>
+                        <span>Ticket History</span>
+                    </a>
                 </div>
             </div>
-            
-            <!-- Main Content -->
-            <div class="col-md-9 col-lg-10 main-content">
-                <!-- Navbar -->
-                <nav class="navbar navbar-expand-lg navbar-custom rounded">
-                    <div class="container-fluid">
-                        <span class="navbar-brand mb-0 h1">Welcome, {{ username }}!</span>
-                        <div class="d-flex">
-                            <span class="navbar-text">
-                                <i class="fas fa-user-circle me-2"></i>{{ username }}
-                            </span>
+
+            <!-- User Widget & Logout -->
+            <div>
+                <div class="p-3 rounded mb-3" style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle);">
+                    <div class="d-flex align-items-center gap-3">
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #06b6d4); display: flex; align-items: center; justify-content: center; font-weight: 700; color: white;">
+                            {{ username[0]|upper if username else 'U' }}
+                        </div>
+                        <div class="overflow-hidden">
+                            <div class="text-white small fw-bold text-truncate">{{ username }}</div>
+                            <div class="text-muted" style="font-size: 0.72rem;">Customer Account</div>
                         </div>
                     </div>
-                </nav>
-                
-                <!-- Tab Content -->
-                <div class="tab-content">
-                    <!-- Dashboard Tab -->
-                    <div class="tab-pane fade show active" id="dashboard">
-                        <div class="row">
-                            <div class="col-12">
-                                <h2 class="mb-4">Dashboard Overview</h2>
-                            </div>
-                        </div>
-                        
-                        <!-- Stats Cards -->
-                        <div class="row mb-4">
-                            <div class="col-md-3">
-                                <div class="card card-custom stats-card">
-                                    <i class="fas fa-ticket-alt fa-2x text-primary"></i>
-                                    <div class="stats-number" id="total-tickets">0</div>
-                                    <div class="stats-label">Total Tickets</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card card-custom stats-card">
-                                    <i class="fas fa-clock fa-2x text-warning"></i>
-                                    <div class="stats-number" id="open-tickets">0</div>
-                                    <div class="stats-label">Open Tickets</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card card-custom stats-card">
-                                    <i class="fas fa-check-circle fa-2x text-success"></i>
-                                    <div class="stats-number" id="resolved-tickets">0</div>
-                                    <div class="stats-label">Resolved Tickets</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card card-custom stats-card">
-                                    <i class="fas fa-chart-line fa-2x text-info"></i>
-                                    <div class="stats-number" id="avg-confidence">0%</div>
-                                    <div class="stats-label">Avg. Confidence</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Recent Tickets -->
-                        <div class="row">
-                            <div class="col-12">
-                                <div class="card card-custom">
-                                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                                        <h5 class="card-title mb-0">Recent Tickets</h5>
-                                        <a href="#ticket-history" class="btn btn-sm btn-outline-primary" data-bs-toggle="tab">
-                                            View All
-                                        </a>
-                                    </div>
-                                    <div class="card-body">
-                                        <div id="recent-tickets-list">
-                                            <!-- Recent tickets will be populated here -->
-                                        </div>
+                </div>
+                <a href="{{ url_for('logout') }}" class="btn-secondary-dark w-100 justify-content-center btn-sm py-2">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-workspace">
+            <!-- Topbar Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                <div>
+                    <h3 class="fw-bold text-white mb-1">Hello, {{ username }} 👋</h3>
+                    <p class="text-secondary small mb-0">Track your support requests and get instant AI-assisted category classifications.</p>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <button class="theme-toggle-btn" onclick="toggleTheme()" type="button" title="Toggle theme">
+                        <i class="fas fa-sun"></i>
+                    </button>
+                    <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px 14px;">
+                        <i class="fas fa-microchip me-1"></i> NLP Engine Online (97.9%)
+                    </span>
+                    <button type="button" class="btn-primary-glow btn-sm px-3" onclick="switchTab('#create-ticket')">
+                        <i class="fas fa-plus"></i> New Ticket
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content Panes -->
+            <div class="tab-content">
+                <!-- 1. Dashboard Overview Tab -->
+                <div class="tab-pane fade show active" id="dashboard">
+                    <!-- Stats Grid -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3 col-6">
+                            <div class="stat-box">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-secondary small fw-semibold text-uppercase">Total Tickets</span>
+                                    <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; width: 36px; height: 36px;">
+                                        <i class="fas fa-ticket-alt"></i>
                                     </div>
                                 </div>
+                                <h3 class="fw-bold text-white mb-0" id="total-tickets">0</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="stat-box">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-secondary small fw-semibold text-uppercase">Open Queries</span>
+                                    <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; width: 36px; height: 36px;">
+                                        <i class="fas fa-clock"></i>
+                                    </div>
+                                </div>
+                                <h3 class="fw-bold text-warning mb-0" id="open-tickets">0</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="stat-box">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-secondary small fw-semibold text-uppercase">Resolved</span>
+                                    <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399; width: 36px; height: 36px;">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                </div>
+                                <h3 class="fw-bold text-success mb-0" id="resolved-tickets">0</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="stat-box">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-secondary small fw-semibold text-uppercase">Avg. Confidence</span>
+                                    <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; width: 36px; height: 36px;">
+                                        <i class="fas fa-chart-line"></i>
+                                    </div>
+                                </div>
+                                <h3 class="fw-bold gradient-text-cyan mb-0" id="avg-confidence">0%</h3>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Create Ticket Tab -->
-                    <div class="tab-pane fade" id="create-ticket">
-                        <div class="row">
-                            <div class="col-12">
-                                <h2 class="mb-4">Create New Ticket</h2>
+
+                    <!-- Recent Tickets Section -->
+                    <div class="glass-card p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold text-white mb-0">Recent Support Inquiries</h5>
+                            <button type="button" class="btn-secondary-dark btn-sm py-1 px-3" onclick="switchTab('#ticket-history')">
+                                View Full History <i class="fas fa-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                        <div id="recent-tickets-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Create Ticket Tab -->
+                <div class="tab-pane fade" id="create-ticket">
+                    <div class="row g-4">
+                        <div class="col-lg-8">
+                            <div class="glass-card p-4">
+                                <h5 class="fw-bold text-white mb-1">Submit Support Request</h5>
+                                <p class="text-secondary small mb-4">Describe the issue clearly. Our machine learning system will automatically assign the appropriate department.</p>
+
+                                <form id="ticket-form">
+                                    <div class="mb-3">
+                                        <label for="ticket-text" class="form-label text-secondary small fw-semibold">Describe Your Issue</label>
+                                        <textarea class="form-control form-control-dark" id="ticket-text" rows="6" placeholder="Example: I was charged twice for invoice #4928 on my credit card. Please issue a refund..." required></textarea>
+                                        <div class="form-text text-muted small mt-1">Include invoice numbers, error messages, or device details for higher classification accuracy.</div>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <label for="notification-email" class="form-label text-secondary small fw-semibold">Notification Email (Optional)</label>
+                                        <div class="input-group-dark">
+                                            <input type="email" class="form-control form-control-dark" id="notification-email" placeholder="name@company.com">
+                                        </div>
+                                        <div class="form-text text-muted small mt-1">Receive automated updates and resolution notices directly in your inbox.</div>
+                                    </div>
+
+                                    <button type="submit" class="btn-primary-glow px-4 py-2" id="submit-ticket">
+                                        <i class="fas fa-paper-plane me-1"></i> Submit Ticket & Classify
+                                    </button>
+                                </form>
                             </div>
                         </div>
-                        
-                        <div class="row">
-                            <div class="col-lg-8">
-                                <div class="card card-custom">
-                                    <div class="card-header bg-white">
-                                        <h5 class="card-title mb-0">Ticket Information</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <form id="ticket-form">
-                                            <div class="mb-3">
-                                                <label for="ticket-text" class="form-label">Describe your issue</label>
-                                                <textarea class="form-control" id="ticket-text" rows="5" placeholder="Please describe your issue in detail..."></textarea>
-                                                <div class="form-text">The more details you provide, the better our AI can classify your ticket.</div>
-                                            </div>
-                                            
-                                            <div class="mb-3">
-                                                <label for="notification-email" class="form-label">Notification Email (Optional)</label>
-                                                <input type="email" class="form-control" id="notification-email" placeholder="Enter email for notifications">
-                                                <div class="form-text">If provided, we'll send updates about your ticket to this email.</div>
-                                            </div>
-                                            
-                                            <button type="submit" class="btn btn-gradient" id="submit-ticket">
-                                                <i class="fas fa-paper-plane me-2"></i>Submit Ticket
-                                            </button>
-                                        </form>
-                                    </div>
+
+                        <!-- Categories Sidebar Guide -->
+                        <div class="col-lg-4">
+                            <div class="glass-card p-4">
+                                <h6 class="fw-bold text-white mb-3 text-uppercase small tracking-wider">
+                                    <i class="fas fa-layer-group text-primary me-2"></i>Supported Departments
+                                </h6>
+                                
+                                <div class="mb-3 p-2 rounded" style="background: rgba(56, 189, 248, 0.05); border-left: 3px solid var(--tech-color);">
+                                    <span class="badge-category badge-tech"><i class="fas fa-code-branch"></i> Technical Support</span>
+                                    <p class="text-muted small mt-1 mb-0">{{ categories['Technical Support'] }}</p>
                                 </div>
-                            </div>
-                            
-                            <div class="col-lg-4">
-                                <div class="card card-custom">
-                                    <div class="card-header bg-white">
-                                        <h5 class="card-title mb-0">Ticket Categories</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="mb-3">
-                                            <span class="category-badge category-tech">Technical Support</span>
-                                            <p class="small mt-1">{{ categories['Technical Support'] }}</p>
-                                        </div>
-                                        <div class="mb-3">
-                                            <span class="category-badge category-returns">Returns</span>
-                                            <p class="small mt-1">{{ categories['Returns'] }}</p>
-                                        </div>
-                                        <div class="mb-3">
-                                            <span class="category-badge category-billing">Billing</span>
-                                            <p class="small mt-1">{{ categories['Billing'] }}</p>
-                                        </div>
-                                        <div class="mb-3">
-                                            <span class="category-badge category-inquiry">General Inquiry</span>
-                                            <p class="small mt-1">{{ categories['General Inquiry'] }}</p>
-                                        </div>
-                                        <div class="mb-3">
-                                            <span class="category-badge category-complaint">Complaint</span>
-                                            <p class="small mt-1">{{ categories['Complaint'] }}</p>
-                                        </div>
-                                    </div>
+                                <div class="mb-3 p-2 rounded" style="background: rgba(251, 191, 36, 0.05); border-left: 3px solid var(--returns-color);">
+                                    <span class="badge-category badge-returns"><i class="fas fa-undo-alt"></i> Returns</span>
+                                    <p class="text-muted small mt-1 mb-0">{{ categories['Returns'] }}</p>
                                 </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Results Section (Initially Hidden) -->
-                        <div class="row mt-4 d-none" id="results-section">
-                            <div class="col-12">
-                                <div class="card card-custom">
-                                    <div class="card-header bg-white">
-                                        <h5 class="card-title mb-0">Classification Result</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <h4 id="result-category" class="mb-3"></h4>
-                                                <p id="result-description" class="text-muted"></p>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <p><strong>Confidence Score:</strong> <span id="result-confidence"></span>%</p>
-                                                <div class="confidence-bar mb-2">
-                                                    <div class="confidence-fill" id="confidence-bar-fill"></div>
-                                                </div>
-                                                <p id="email-status" class="small"></p>
-                                            </div>
-                                        </div>
-                                        <div class="mt-3">
-                                            <button class="btn btn-outline-primary me-2" id="create-another-ticket">
-                                                <i class="fas fa-plus me-1"></i>Create Another Ticket
-                                            </button>
-                                            <a href="#ticket-history" class="btn btn-gradient" data-bs-toggle="tab">
-                                                <i class="fas fa-history me-1"></i>View All Tickets
-                                            </a>
-                                        </div>
-                                    </div>
+                                <div class="mb-3 p-2 rounded" style="background: rgba(52, 211, 153, 0.05); border-left: 3px solid var(--billing-color);">
+                                    <span class="badge-category badge-billing"><i class="fas fa-receipt"></i> Billing</span>
+                                    <p class="text-muted small mt-1 mb-0">{{ categories['Billing'] }}</p>
+                                </div>
+                                <div class="mb-3 p-2 rounded" style="background: rgba(167, 139, 250, 0.05); border-left: 3px solid var(--inquiry-color);">
+                                    <span class="badge-category badge-inquiry"><i class="fas fa-info-circle"></i> General Inquiry</span>
+                                    <p class="text-muted small mt-1 mb-0">{{ categories['General Inquiry'] }}</p>
+                                </div>
+                                <div class="p-2 rounded" style="background: rgba(248, 113, 113, 0.05); border-left: 3px solid var(--complaint-color);">
+                                    <span class="badge-category badge-complaint"><i class="fas fa-exclamation-triangle"></i> Complaint</span>
+                                    <p class="text-muted small mt-1 mb-0">{{ categories['Complaint'] }}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Ticket History Tab -->
-                    <div class="tab-pane fade" id="ticket-history">
-                        <div class="row">
-                            <div class="col-12">
-                                <h2 class="mb-4">Ticket History</h2>
+
+                    <!-- AI Results Section (Initially Hidden) -->
+                    <div class="row mt-4 d-none" id="results-section">
+                        <div class="col-12">
+                            <div class="glass-card p-4" style="border-color: rgba(99, 102, 241, 0.5); box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);">
+                                <div class="d-flex align-items-center gap-2 mb-3">
+                                    <div style="width: 28px; height: 28px; border-radius: 8px; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-sparkles text-white small"></i>
+                                    </div>
+                                    <h5 class="fw-bold text-white mb-0">AI Classification Results</h5>
+                                </div>
+
+                                <div class="row g-4 align-items-center">
+                                    <div class="col-md-6">
+                                        <div class="small text-secondary mb-1">Detected Department:</div>
+                                        <h3 id="result-category" class="fw-bold gradient-text mb-2"></h3>
+                                        <p id="result-description" class="text-secondary small mb-0"></p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="small text-secondary">Predicted Confidence:</span>
+                                            <span class="fw-bold text-success"><span id="result-confidence"></span>%</span>
+                                        </div>
+                                        <div class="confidence-bar mb-3">
+                                            <div class="confidence-fill" id="confidence-bar-fill"></div>
+                                        </div>
+                                        <div id="email-status" class="small"></div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 pt-3 d-flex gap-2" style="border-top: 1px solid var(--border-subtle);">
+                                    <button class="btn-secondary-dark btn-sm px-3" id="create-another-ticket">
+                                        <i class="fas fa-plus me-1"></i> Submit Another Ticket
+                                    </button>
+                                    <button type="button" class="btn-primary-glow btn-sm px-3" onclick="switchTab('#ticket-history')">
+                                        <i class="fas fa-history me-1"></i> View Ticket History
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-6">
+                    </div>
+                </div>
+
+                <!-- 3. Ticket History Tab -->
+                <div class="tab-pane fade" id="ticket-history">
+                    <div class="glass-card p-4 mb-4">
+                        <div class="row g-3 align-items-center justify-content-between">
+                            <div class="col-md-5">
                                 <div class="input-group">
-                                    <input type="text" class="form-control" placeholder="Search tickets..." id="search-tickets">
-                                    <button class="btn btn-outline-secondary" type="button" id="search-button">
+                                    <input type="text" class="form-control form-control-dark" placeholder="Search ticket text..." id="search-tickets">
+                                    <button class="btn btn-secondary-dark" type="button" id="search-button">
                                         <i class="fas fa-search"></i>
                                     </button>
                                 </div>
                             </div>
-                            <div class="col-md-6 text-end">
+                            <div class="col-md-7 d-flex justify-content-md-end gap-2 flex-wrap">
                                 <div class="btn-group">
-                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                        Filter by Status
+                                    <button class="btn btn-secondary-dark btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="fas fa-clock me-1"></i> Filter Status
                                     </button>
-                                    <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="all">All Status</a></li>
+                                    <ul class="dropdown-menu dropdown-menu-dark">
+                                        <li><a class="dropdown-item filter-option" href="#" data-filter="all">All Statuses</a></li>
                                         <li><a class="dropdown-item filter-option" href="#" data-filter="Open">Open</a></li>
                                         <li><a class="dropdown-item filter-option" href="#" data-filter="Resolved">Resolved</a></li>
                                     </ul>
                                 </div>
-                                <div class="btn-group ms-2">
-                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                        Filter by Category
+
+                                <div class="btn-group">
+                                    <button class="btn btn-secondary-dark btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="fas fa-tags me-1"></i> Filter Category
                                     </button>
-                                    <ul class="dropdown-menu">
+                                    <ul class="dropdown-menu dropdown-menu-dark">
                                         <li><a class="dropdown-item filter-option" href="#" data-filter="all">All Categories</a></li>
                                         <li><a class="dropdown-item filter-option" href="#" data-filter="Technical Support">Technical Support</a></li>
                                         <li><a class="dropdown-item filter-option" href="#" data-filter="Returns">Returns</a></li>
@@ -495,106 +410,141 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="row">
-                            <div class="col-12">
-                                <div class="card card-custom">
-                                    <div class="card-header bg-white">
-                                        <h5 class="card-title mb-0">Your Tickets</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div id="tickets-list">
-                                            {% if tickets %}
-                                                {% for ticket in tickets %}
-                                                    <div class="card ticket-card mb-3 
-                                                        {% if ticket.predicted_category == 'Technical Support' %}ticket-tech
-                                                        {% elif ticket.predicted_category == 'Returns' %}ticket-returns
-                                                        {% elif ticket.predicted_category == 'Billing' %}ticket-billing
-                                                        {% elif ticket.predicted_category == 'General Inquiry' %}ticket-inquiry
-                                                        {% else %}ticket-complaint{% endif %}">
-                                                        <div class="card-body">
-                                                            <div class="row">
-                                                                <div class="col-md-8">
-                                                                    <h5 class="card-title">
-                                                                        Ticket #{{ ticket.id }}
-                                                                        {% if ticket.resolution_notes %}
-                                                                            <i class="fas fa-check-circle text-success ms-2" title="Resolved"></i>
-                                                                        {% endif %}
-                                                                    </h5>
-                                                                    <p class="ticket-text-preview">{{ ticket.ticket_text }}</p>
-                                                                    <small class="text-muted">Created: {{ ticket.created_at }}</small>
-                                                                    
-                                                                    {% if ticket.resolution_notes %}
-                                                                    <div class="resolution-notes mt-2">
-                                                                        <strong><i class="fas fa-check me-1"></i>Resolution:</strong>
-                                                                        <p class="mb-1">{{ ticket.resolution_notes }}</p>
-                                                                        <small class="resolved-info">
-                                                                            Resolved on: {{ ticket.resolved_at }}
-                                                                        </small>
-                                                                    </div>
-                                                                    {% endif %}
-                                                                </div>
-                                                                <div class="col-md-4 text-end">
-                                                                    <span class="category-badge 
-                                                                        {% if ticket.predicted_category == 'Technical Support' %}category-tech
-                                                                        {% elif ticket.predicted_category == 'Returns' %}category-returns
-                                                                        {% elif ticket.predicted_category == 'Billing' %}category-billing
-                                                                        {% elif ticket.predicted_category == 'General Inquiry' %}category-inquiry
-                                                                        {% else %}category-complaint{% endif %}">
-                                                                        {{ ticket.predicted_category }}
-                                                                    </span>
-                                                                    <div class="mt-2">
-                                                                        <span class="status-badge status-{{ ticket.status.lower() }}">
-                                                                            {% if ticket.status == 'Resolved' %}
-                                                                                <i class="fas fa-check me-1"></i>
-                                                                            {% elif ticket.status == 'Open' %}
-                                                                                <i class="fas fa-clock me-1"></i>
-                                                                            {% endif %}
-                                                                            {{ ticket.status }}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div class="mt-2">
-                                                                        <small>Confidence: {{ "%.1f"|format(ticket.confidence) }}%</small>
-                                                                        <div class="confidence-bar">
-                                                                            <div class="confidence-fill" style="width: {{ ticket.confidence }}%;"></div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                {% endfor %}
-                                            {% else %}
-                                                <div class="text-center py-4">
-                                                    <i class="fas fa-ticket-alt fa-3x text-muted mb-3"></i>
-                                                    <p class="text-muted">No tickets found. <a href="#create-ticket" data-bs-toggle="tab">Create your first ticket</a>.</p>
+                    </div>
+
+                    <!-- Tickets List Container -->
+                    <div id="tickets-list">
+                        {% if tickets %}
+                            {% for ticket in tickets %}
+                                <div class="ticket-card mb-3 
+                                    {% if ticket.predicted_category == 'Technical Support' %}ticket-tech
+                                    {% elif ticket.predicted_category == 'Returns' %}ticket-returns
+                                    {% elif ticket.predicted_category == 'Billing' %}ticket-billing
+                                    {% elif ticket.predicted_category == 'General Inquiry' %}ticket-inquiry
+                                    {% else %}ticket-complaint{% endif %}">
+                                    <div class="row align-items-start g-3">
+                                        <div class="col-lg-8">
+                                            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                                <span class="fw-bold text-white">Ticket #{{ ticket.id }}</span>
+                                                {% if ticket.resolution_notes %}
+                                                    <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                                        <i class="fas fa-check-circle me-1"></i> Resolved
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                            <p class="ticket-text-preview text-light mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
+                                            <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: {{ ticket.created_at }}</div>
+                                            
+                                            {% if ticket.resolution_notes %}
+                                            <div class="mt-3 p-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+                                                <div class="small fw-bold text-success mb-1">
+                                                    <i class="fas fa-check me-1"></i> Support Resolution:
                                                 </div>
+                                                <p class="mb-1 text-light small">{{ ticket.resolution_notes }}</p>
+                                                <div class="text-muted" style="font-size: 0.72rem;">Resolved on: {{ ticket.resolved_at }}</div>
+                                            </div>
                                             {% endif %}
+                                        </div>
+
+                                        <div class="col-lg-4 text-lg-end">
+                                            <span class="badge-category 
+                                                {% if ticket.predicted_category == 'Technical Support' %}badge-tech
+                                                {% elif ticket.predicted_category == 'Returns' %}badge-returns
+                                                {% elif ticket.predicted_category == 'Billing' %}badge-billing
+                                                {% elif ticket.predicted_category == 'General Inquiry' %}badge-inquiry
+                                                {% else %}badge-complaint{% endif %}">
+                                                {{ ticket.predicted_category }}
+                                            </span>
+
+                                            <div class="mt-2">
+                                                <span class="badge-category {% if ticket.status == 'Resolved' %}badge-resolved{% else %}badge-open{% endif %}">
+                                                    <i class="fas {% if ticket.status == 'Resolved' %}fa-check{% else %}fa-clock{% endif %}"></i>
+                                                    {{ ticket.status }}
+                                                </span>
+                                            </div>
+
+                                            <div class="mt-2" style="max-width: 160px; margin-left: auto;">
+                                                <div class="d-flex justify-content-between small text-muted">
+                                                    <span>Confidence</span>
+                                                    <span>{{ "%.1f"|format(ticket.confidence) }}%</span>
+                                                </div>
+                                                <div class="confidence-bar">
+                                                    <div class="confidence-fill" style="width: {{ ticket.confidence }}%;"></div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="glass-card p-5 text-center">
+                                <i class="fas fa-ticket-alt fa-3x text-muted mb-3"></i>
+                                <h5 class="text-white">No Tickets Found</h5>
+                                <p class="text-secondary small mb-3">You haven't submitted any support requests yet.</p>
+                                <button type="button" class="btn-primary-glow btn-sm" onclick="switchTab('#create-ticket')">Create Your First Ticket</button>
                             </div>
-                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script id="tickets-data" type="application/json">{{ tickets|tojson|safe }}</script>
     <script>
+        // Global tab switcher accessible anywhere
+        function switchTab(target) {
+            if (!target) return;
+            const cleanId = target.replace('#', '');
+            
+            // 1. Remove active/show from all tab panes
+            const allPanes = document.querySelectorAll('.tab-content > .tab-pane');
+            allPanes.forEach(pane => {
+                pane.classList.remove('show', 'active');
+            });
+            
+            // 2. Activate target pane
+            const targetPane = document.getElementById(cleanId);
+            if (targetPane) {
+                targetPane.classList.add('show', 'active');
+            }
+            
+            // 3. Sync sidebar active state
+            document.querySelectorAll('#menu .nav-pill-custom').forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === '#' + cleanId) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+            
+            // 4. Focus textarea if create-ticket
+            if (cleanId === 'create-ticket') {
+                setTimeout(() => {
+                    const txt = document.getElementById('ticket-text');
+                    if (txt) txt.focus();
+                }, 100);
+            }
+            
+            // 5. Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        window.switchTab = switchTab;
+
         document.addEventListener('DOMContentLoaded', function() {
-            // Tab switching
-            const triggerTabList = [].slice.call(document.querySelectorAll('#menu a[data-bs-toggle="tab"]'))
-            triggerTabList.forEach(function (triggerEl) {
-                const tabTrigger = new bootstrap.Tab(triggerEl)
-                
-                triggerEl.addEventListener('click', function (event) {
-                    event.preventDefault()
-                    tabTrigger.show()
-                })
-            })
+            // Click listener for any element pointing to a tab
+            document.addEventListener('click', function(e) {
+                const trigger = e.target.closest('[data-bs-toggle="tab"], .nav-pill-custom, a[href^="#"]');
+                if (trigger) {
+                    const href = trigger.getAttribute('href');
+                    if (href && (href === '#dashboard' || href === '#create-ticket' || href === '#ticket-history')) {
+                        e.preventDefault();
+                        switchTab(href);
+                    }
+                }
+            });
             
             // Ticket form submission
             document.getElementById('ticket-form').addEventListener('submit', function(e) {
@@ -611,7 +561,7 @@
                 
                 // Disable button and show loading state
                 submitButton.disabled = true;
-                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing with AI...';
                 
                 // Send request to server
                 fetch('/classify', {
@@ -639,11 +589,11 @@
                         // Update email status
                         const emailStatus = document.getElementById('email-status');
                         if (data.email_sent) {
-                            emailStatus.innerHTML = '<i class="fas fa-check-circle text-success me-1"></i>Notification email sent successfully';
+                            emailStatus.innerHTML = '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Notification email sent successfully</span>';
                         } else if (notificationEmail) {
-                            emailStatus.innerHTML = '<i class="fas fa-exclamation-triangle text-warning me-1"></i>Email notification failed';
+                            emailStatus.innerHTML = '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Email notification failed (check SMTP settings)</span>';
                         } else {
-                            emailStatus.innerHTML = '<i class="fas fa-info-circle text-info me-1"></i>No email provided for notifications';
+                            emailStatus.innerHTML = '<span class="text-muted"><i class="fas fa-info-circle me-1"></i>No email provided for notifications</span>';
                         }
                         
                         // Scroll to results
@@ -652,8 +602,22 @@
                         // Reset form
                         document.getElementById('ticket-form').reset();
                         
-                        // Refresh dashboard stats
-                        setTimeout(updateDashboardStats, 1000);
+                        // Update local tickets data array and re-render stats & recent tickets
+                        const ticketsDataElement = document.getElementById('tickets-data');
+                        const currentTickets = ticketsDataElement ? JSON.parse(ticketsDataElement.textContent || '[]') : [];
+                        currentTickets.unshift({
+                            id: data.ticket_id,
+                            ticket_text: ticketText,
+                            predicted_category: data.category,
+                            confidence: data.confidence,
+                            status: 'Open',
+                            created_at: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                            resolution_notes: null
+                        });
+                        if (ticketsDataElement) {
+                            ticketsDataElement.textContent = JSON.stringify(currentTickets);
+                        }
+                        updateDashboardStats();
                     } else {
                         alert('Error: ' + data.error);
                     }
@@ -663,9 +627,8 @@
                     alert('An error occurred while processing your ticket');
                 })
                 .finally(() => {
-                    // Re-enable button
                     submitButton.disabled = false;
-                    submitButton.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Submit Ticket';
+                    submitButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Submit Ticket & Classify';
                 });
             });
             
@@ -696,75 +659,76 @@
                     const recentTicketsList = document.getElementById('recent-tickets-list');
                     recentTicketsList.innerHTML = '';
                     
-                    const recentTickets = tickets.slice(0, 5); // Show only 5 most recent
+                    const recentTickets = tickets.slice(0, 5);
                     
                     if (recentTickets.length > 0) {
                         recentTickets.forEach(ticket => {
                             const ticketElement = document.createElement('div');
-                            ticketElement.className = `card ticket-card mb-3 
-                                ${ticket.predicted_category === 'Technical Support' ? 'ticket-tech' :
-                                  ticket.predicted_category === 'Returns' ? 'ticket-returns' :
-                                  ticket.predicted_category === 'Billing' ? 'ticket-billing' :
-                                  ticket.predicted_category === 'General Inquiry' ? 'ticket-inquiry' : 'ticket-complaint'}`;
+                            const catClass = ticket.predicted_category === 'Technical Support' ? 'ticket-tech' :
+                                              ticket.predicted_category === 'Returns' ? 'ticket-returns' :
+                                              ticket.predicted_category === 'Billing' ? 'ticket-billing' :
+                                              ticket.predicted_category === 'General Inquiry' ? 'ticket-inquiry' : 'ticket-complaint';
+                            
+                            const badgeClass = ticket.predicted_category === 'Technical Support' ? 'badge-tech' :
+                                               ticket.predicted_category === 'Returns' ? 'badge-returns' :
+                                               ticket.predicted_category === 'Billing' ? 'badge-billing' :
+                                               ticket.predicted_category === 'General Inquiry' ? 'badge-inquiry' : 'badge-complaint';
+
+                            ticketElement.className = `ticket-card mb-3 ${catClass}`;
                             
                             let resolutionHtml = '';
                             if (ticket.resolution_notes) {
                                 resolutionHtml = `
-                                    <div class="resolution-notes mt-2">
-                                        <strong><i class="fas fa-check me-1"></i>Resolution:</strong>
-                                        <p class="mb-1">${ticket.resolution_notes}</p>
-                                        <small class="resolved-info">
-                                            Resolved on: ${ticket.resolved_at || 'N/A'}
-                                        </small>
+                                    <div class="mt-2 p-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+                                        <div class="small fw-bold text-success mb-1">
+                                            <i class="fas fa-check me-1"></i> Resolution:
+                                        </div>
+                                        <p class="mb-1 text-light small">${ticket.resolution_notes}</p>
+                                        <small class="text-muted">Resolved on: ${ticket.resolved_at || 'N/A'}</small>
                                     </div>
                                 `;
                             }
                             
                             ticketElement.innerHTML = `
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-8">
-                                            <h5 class="card-title">
-                                                Ticket #${ticket.id}
-                                                ${ticket.resolution_notes ? '<i class="fas fa-check-circle text-success ms-2" title="Resolved"></i>' : ''}
-                                            </h5>
-                                            <p class="ticket-text-preview">${ticket.ticket_text}</p>
-                                            <small class="text-muted">Created: ${ticket.created_at}</small>
-                                            ${resolutionHtml}
+                                <div class="row align-items-start g-3">
+                                    <div class="col-lg-8">
+                                        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                            <span class="fw-bold text-white">Ticket #${ticket.id}</span>
+                                            ${ticket.resolution_notes ? '<span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem;"><i class="fas fa-check-circle me-1"></i> Resolved</span>' : ''}
                                         </div>
-                                        <div class="col-md-4 text-end">
-                                            <span class="category-badge 
-                                                ${ticket.predicted_category === 'Technical Support' ? 'category-tech' :
-                                                  ticket.predicted_category === 'Returns' ? 'category-returns' :
-                                                  ticket.predicted_category === 'Billing' ? 'category-billing' :
-                                                  ticket.predicted_category === 'General Inquiry' ? 'category-inquiry' : 'category-complaint'}">
-                                                ${ticket.predicted_category}
+                                        <p class="ticket-text-preview text-light mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${ticket.ticket_text}</p>
+                                        <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: ${ticket.created_at}</div>
+                                        ${resolutionHtml}
+                                    </div>
+                                    <div class="col-lg-4 text-lg-end">
+                                        <span class="badge-category ${badgeClass}">
+                                            ${ticket.predicted_category}
+                                        </span>
+                                        <div class="mt-2">
+                                            <span class="badge-category ${ticket.status === 'Resolved' ? 'badge-resolved' : 'badge-open'}">
+                                                <i class="fas ${ticket.status === 'Resolved' ? 'fa-check' : 'fa-clock'}"></i>
+                                                ${ticket.status}
                                             </span>
-                                            <div class="mt-2">
-                                                <span class="status-badge status-${ticket.status.toLowerCase()}">
-                                                    ${ticket.status === 'Resolved' ? '<i class="fas fa-check me-1"></i>' : 
-                                                      ticket.status === 'Open' ? '<i class="fas fa-clock me-1"></i>' : ''}
-                                                    ${ticket.status}
-                                                </span>
+                                        </div>
+                                        <div class="mt-2" style="max-width: 160px; margin-left: auto;">
+                                            <div class="d-flex justify-content-between small text-muted">
+                                                <span>Confidence</span>
+                                                <span>${ticket.confidence.toFixed(1)}%</span>
                                             </div>
-                                            <div class="mt-2">
-                                                <small>Confidence: ${ticket.confidence.toFixed(1)}%</small>
-                                                <div class="confidence-bar">
-                                                    <div class="confidence-fill" style="width: ${ticket.confidence}%"></div>
-                                                </div>
+                                            <div class="confidence-bar">
+                                                <div class="confidence-fill" style="width: ${ticket.confidence}%;"></div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             `;
-                            
                             recentTicketsList.appendChild(ticketElement);
                         });
                     } else {
                         recentTicketsList.innerHTML = `
-                            <div class="text-center py-4">
-                                <i class="fas fa-ticket-alt fa-3x text-muted mb-3"></i>
-                                <p class="text-muted">No tickets found. <a href="#create-ticket" data-bs-toggle="tab">Create your first ticket</a>.</p>
+                            <div class="text-center py-4 text-secondary">
+                                <i class="fas fa-ticket-alt fa-2x mb-2 text-muted"></i>
+                                <p class="small mb-0">No tickets found yet.</p>
                             </div>
                         `;
                     }
@@ -800,12 +764,13 @@
                 
                 ticketCards.forEach(card => {
                     const ticketText = card.querySelector('.ticket-text-preview').textContent.toLowerCase();
-                    const ticketCategory = card.querySelector('.category-badge').textContent;
-                    const ticketStatus = card.querySelector('.status-badge').textContent.trim();
+                    const ticketCategory = card.querySelector('.badge-category').textContent.trim();
+                    const statusBadge = card.querySelector('.badge-open, .badge-resolved');
+                    const ticketStatus = statusBadge ? statusBadge.textContent.trim() : '';
                     
                     const matchesSearch = ticketText.includes(searchTerm);
-                    const matchesStatus = statusFilter === 'all' || ticketStatus === statusFilter;
-                    const matchesCategory = categoryFilter === 'all' || ticketCategory === categoryFilter;
+                    const matchesStatus = statusFilter === 'all' || ticketStatus.includes(statusFilter);
+                    const matchesCategory = categoryFilter === 'all' || ticketCategory.includes(categoryFilter);
                     
                     if (matchesSearch && matchesStatus && matchesCategory) {
                         card.style.display = 'block';

@@ -3,165 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ticket Classification System</title>
+    <title>TicketAI — Next-Gen AI Ticket Classification</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <style>
-        /* Header with Background Image */
-        .hero-section {
-            background: linear-gradient(rgba(102, 126, 234, 0.8), rgba(118, 75, 162, 0.8)), 
-                        url('https://images.unsplash.com/photo-1552664730-d307ca884978?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80');
-            background-size: cover;
-            background-position: center;
-            color: white;
-            padding: 150px 0;
-            text-align: center;
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 9999px;
+            color: #a5b4fc;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            box-shadow: 0 0 18px rgba(99, 102, 241, 0.2);
+        }
+        .hero-badge .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+        .hero-wrapper {
+            padding: 120px 0 80px 0;
             position: relative;
         }
-        
-        .hero-content {
-            position: relative;
-            z-index: 2;
+        .hero-mockup {
+            background: rgba(16, 23, 38, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px -10px rgba(99, 102, 241, 0.3);
+            overflow: hidden;
+            margin-top: 40px;
         }
-        
-        /* General Styles */
-        .feature-card {
-            border: none;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-            margin-bottom: 30px;
-            height: 100%;
+        .mockup-header {
+            background: rgba(11, 17, 30, 0.95);
+            padding: 12px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        .feature-card:hover {
-            transform: translateY(-5px);
-        }
-        .feature-icon {
-            font-size: 3rem;
-            color: #4e73df;
-            margin-bottom: 20px;
-        }
-        .category-badge {
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-weight: 600;
-            margin: 5px;
-        }
-        .cta-section {
-            background: #f8f9fa;
-            padding: 80px 0;
-        }
-        .footer {
-            background: #2c3e50;
-            color: white;
-            padding: 40px 0;
-        }
-        
-        /* How It Works Section */
-        .process-step {
-            text-align: center;
-            padding: 30px 20px;
-        }
-        .step-number {
-            display: inline-block;
-            width: 50px;
-            height: 50px;
-            line-height: 50px;
+        .mockup-dot {
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
-            background: #4e73df;
-            color: white;
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-bottom: 20px;
         }
-        
-        /* Team Section */
-        .team-section {
-            padding: 80px 0;
-            background: #fff;
-        }
-        .team-member {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .team-img {
-            width: 180px;
-            height: 180px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 5px solid #e9ecef;
-            margin: 0 auto 20px;
-            transition: transform 0.3s ease;
-        }
-        .team-img:hover {
-            transform: scale(1.05);
-        }
-        .team-name {
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-        .team-title {
-            color: #6c757d;
-            font-size: 0.9rem;
-        }
-        
-        /* Section Headers */
-        .section-header {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-        .section-header h2 {
+        .step-number-glow {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: 700;
-            margin-bottom: 15px;
-            position: relative;
-            display: inline-block;
+            font-size: 1.25rem;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
         }
-        .section-header h2:after {
-            content: '';
-            position: absolute;
-            width: 60px;
-            height: 3px;
-            background: #4e73df;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
+        .category-card {
+            border-left: 3px solid transparent;
+            transition: all 0.3s ease;
         }
-        
-        /* Responsive Adjustments */
-        @media (max-width: 768px) {
-            .hero-section {
-                padding: 100px 0;
-            }
-            .hero-section h1 {
-                font-size: 2.5rem;
-            }
+        .category-card.tech { border-left-color: #38bdf8; }
+        .category-card.billing { border-left-color: #34d399; }
+        .category-card.returns { border-left-color: #fbbf24; }
+        .category-card.inquiry { border-left-color: #a78bfa; }
+        .category-card.complaint { border-left-color: #f87171; }
+        .category-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .cta-box {
+            background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.25) 0%, rgba(16, 23, 38, 0.9) 75%);
+            border: 1px solid rgba(99, 102, 241, 0.35);
+            border-radius: 24px;
+            padding: 60px 30px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(99, 102, 241, 0.2);
         }
     </style>
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-primary" href="#">
-                <i class="fas fa-robot me-2"></i>TicketAI
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg sticky-top" style="background: rgba(10, 14, 23, 0.85); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-subtle);">
+        <div class="container py-2">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                <div style="width: 38px; height: 38px; border-radius: 10px; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(99,102,241,0.5);">
+                    <i class="fas fa-ticket-alt text-white"></i>
+                </div>
+                <span class="fw-bold fs-4 text-white">Ticket<span class="gradient-text">AI</span></span>
             </a>
-            <div class="navbar-nav ms-auto">
-                <a href="{{ url_for('login') }}" class="btn btn-outline-primary me-2">Login</a>
-                <a href="{{ url_for('register') }}" class="btn btn-primary">Register</a>
+            <button class="navbar-toggler text-white border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="navMenu">
+                <ul class="navbar-nav mx-auto gap-4">
+                    <li class="nav-item"><a class="nav-link text-light opacity-75 hover-opacity-100" href="#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link text-light opacity-75" href="#how-it-works">How It Works</a></li>
+                    <li class="nav-item"><a class="nav-link text-light opacity-75" href="#categories">Categories</a></li>
+                </ul>
+                <div class="d-flex align-items-center gap-3">
+                    <button class="theme-toggle-btn" onclick="toggleTheme()" type="button" title="Toggle theme">
+                        <i class="fas fa-sun"></i>
+                    </button>
+                    <a href="{{ url_for('login') }}" class="btn-secondary-dark btn-sm px-3">
+                        <i class="fas fa-sign-in-alt"></i> Sign In
+                    </a>
+                    <a href="{{ url_for('register') }}" class="btn-primary-glow btn-sm px-3">
+                        <i class="fas fa-sparkles"></i> Get Started
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
 
-    <!-- Hero Section with Background Image -->
-    <section class="hero-section">
+    <!-- Hero Section -->
+    <section class="hero-wrapper text-center">
         <div class="container">
             <div class="row justify-content-center">
-                <div class="col-lg-8 hero-content">
-                    <h1 class="display-4 fw-bold mb-4">AI-Powered Ticket Classification System</h1>
-                    <p class="lead mb-5">Automatically categorize customer support tickets with machine learning and natural language processing. Save time and improve response efficiency.</p>
-                    <div class="d-flex gap-3 justify-content-center flex-wrap">
-                        <a href="{{ url_for('register') }}" class="btn btn-light btn-lg px-4">Get Started</a>
-                        <a href="#how-it-works" class="btn btn-outline-light btn-lg px-4">Learn More</a>
+                <div class="col-lg-10">
+                    <div class="hero-badge">
+                        <span class="pulse-dot"></span>
+                        <span>97.9% Classification Accuracy • Real-Time NLP Inference</span>
+                    </div>
+                    <h1 class="display-3 fw-bold mb-4" style="line-height: 1.15;">
+                        Intelligent Support Ticket <br>
+                        <span class="gradient-text">Routing Powered by AI</span>
+                    </h1>
+                    <p class="lead text-secondary mx-auto mb-5" style="max-width: 720px; font-size: 1.25rem;">
+                        Eliminate manual support triage. Automatically classify, prioritize, and route customer queries in milliseconds using advanced Natural Language Processing.
+                    </p>
+                    <div class="d-flex justify-content-center gap-3 flex-wrap">
+                        <a href="{{ url_for('register') }}" class="btn-primary-glow px-4 py-3 fs-6">
+                            <i class="fas fa-arrow-right"></i> Start Free Today
+                        </a>
+                        <a href="{{ url_for('login') }}" class="btn-secondary-dark px-4 py-3 fs-6">
+                            <i class="fas fa-laptop-code"></i> Live Demo Portal
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Live AI Preview Mockup -->
+                <div class="col-lg-9">
+                    <div class="hero-mockup text-start">
+                        <div class="mockup-header">
+                            <span class="mockup-dot" style="background: #ef4444;"></span>
+                            <span class="mockup-dot" style="background: #f59e0b;"></span>
+                            <span class="mockup-dot" style="background: #10b981;"></span>
+                            <span class="ms-2 text-muted" style="font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">TicketAI Live Inference Engine</span>
+                        </div>
+                        <div class="p-4">
+                            <div class="row g-4 align-items-center">
+                                <div class="col-md-7">
+                                    <div class="text-secondary small mb-2">Customer Submission:</div>
+                                    <div class="p-3 rounded" style="background: rgba(11, 17, 30, 0.7); border: 1px solid rgba(255,255,255,0.06); font-size: 0.95rem; color: #e2e8f0;">
+                                        "I was charged twice on my credit card for the monthly subscription invoice #INV-4920. Please issue a refund immediately."
+                                    </div>
+                                </div>
+                                <div class="col-md-5">
+                                    <div class="p-3 rounded glass-card" style="border-color: rgba(52, 211, 153, 0.3);">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="small text-muted">Detected Category</span>
+                                            <span class="badge-category badge-billing"><i class="fas fa-receipt"></i> Billing</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="small text-muted">Confidence</span>
+                                            <span class="text-success fw-bold">98.4% (High)</span>
+                                        </div>
+                                        <div class="progress" style="height: 6px; background: rgba(255,255,255,0.08);">
+                                            <div class="progress-bar bg-success" style="width: 98.4%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Metrics Stats -->
+    <section class="py-5" id="features">
+        <div class="container">
+            <div class="row g-4 text-center">
+                <div class="col-6 col-md-3">
+                    <div class="stat-box">
+                        <h2 class="display-5 fw-bold gradient-text mb-1">97.9%</h2>
+                        <p class="text-secondary small mb-0">Model Accuracy</p>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-box">
+                        <h2 class="display-5 fw-bold gradient-text-cyan mb-1">&lt; 50ms</h2>
+                        <p class="text-secondary small mb-0">Inference Speed</p>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-box">
+                        <h2 class="display-5 fw-bold text-white mb-1">8,980+</h2>
+                        <p class="text-secondary small mb-0">Trained Samples</p>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-box">
+                        <h2 class="display-5 fw-bold text-success mb-1">100%</h2>
+                        <p class="text-secondary small mb-0">Automated Dispatch</p>
                     </div>
                 </div>
             </div>
@@ -169,37 +225,34 @@
     </section>
 
     <!-- How It Works Section -->
-    <section id="how-it-works" class="py-5 bg-light">
-        <div class="container">
-            <div class="section-header">
-                <h2>How It Works</h2>
-                <p class="lead text-muted">Follow these simple steps to classify your support tickets efficiently</p>
+    <section id="how-it-works" class="py-5">
+        <div class="container py-4">
+            <div class="text-center mb-5">
+                <h6 class="text-uppercase text-primary fw-bold tracking-wider mb-2">Simple Workflow</h6>
+                <h2 class="display-6 fw-bold">How TicketAI Works</h2>
+                <p class="text-secondary mx-auto" style="max-width: 580px;">Three steps from raw customer complaint to calibrated categorization and agent resolution.</p>
             </div>
             
-            <div class="row">
-                <div class="col-md-4 process-step">
-                    <div class="step-number">1</div>
-                    <h5>Register & Login</h5>
-                    <p class="text-muted">Create your account or login to access the ticket classification system</p>
-                    <div class="mt-4">
-                        <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-sm">Register</a>
-                        <a href="{{ url_for('login') }}" class="btn btn-primary btn-sm ms-2">Login</a>
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="glass-card p-4 h-100">
+                        <div class="step-number-glow">1</div>
+                        <h4 class="fw-bold mb-2">Ticket Ingestion</h4>
+                        <p class="text-secondary mb-0">Customers submit inquiries through the intuitive portal with instant validation and email delivery tracking.</p>
                     </div>
                 </div>
-                <div class="col-md-4 process-step">
-                    <div class="step-number">2</div>
-                    <h5>Submit Ticket Text</h5>
-                    <p class="text-muted">Enter your customer support ticket description or question in the dashboard</p>
-                    <div class="mt-4">
-                        <i class="fas fa-keyboard text-primary fa-2x"></i>
+                <div class="col-md-4">
+                    <div class="glass-card p-4 h-100">
+                        <div class="step-number-glow">2</div>
+                        <h4 class="fw-bold mb-2">NLP AI Analysis</h4>
+                        <p class="text-secondary mb-0">Dual-granularity TF-IDF vectors process word and character sub-sequences to predict categories and confidence ratings.</p>
                     </div>
                 </div>
-                <div class="col-md-4 process-step">
-                    <div class="step-number">3</div>
-                    <h5>Get AI Classification</h5>
-                    <p class="text-muted">Our system analyzes the text and provides instant category detection with confidence scores</p>
-                    <div class="mt-4">
-                        <i class="fas fa-robot text-primary fa-2x"></i>
+                <div class="col-md-4">
+                    <div class="glass-card p-4 h-100">
+                        <div class="step-number-glow">3</div>
+                        <h4 class="fw-bold mb-2">Automated Routing</h4>
+                        <p class="text-secondary mb-0">Tickets arrive tagged into the dedicated admin queue for immediate agent handling, resolution, and automated customer updates.</p>
                     </div>
                 </div>
             </div>
@@ -207,30 +260,43 @@
     </section>
 
     <!-- Categories Section -->
-    <section class="py-5">
-        <div class="container">
-            <div class="section-header">
-                <h2>Supported Categories</h2>
-                <p class="lead text-muted">Our system can classify tickets into these main categories</p>
+    <section class="py-5" id="categories">
+        <div class="container py-4">
+            <div class="text-center mb-5">
+                <h6 class="text-uppercase text-primary fw-bold mb-2">Classification Coverage</h6>
+                <h2 class="display-6 fw-bold">Supported Categories</h2>
+                <p class="text-secondary mx-auto" style="max-width: 600px;">Our machine learning classifier is fine-tuned to recognize and categorize 5 primary enterprise support channels.</p>
             </div>
             
-            <div class="row">
+            <div class="row g-4">
                 {% for category, description in categories.items() %}
-                <div class="col-lg-6 mb-4">
-                    <div class="card feature-card h-100">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center mb-3">
-                                <span class="category-badge 
-                                    {% if category == 'Technical Support' %}bg-primary
-                                    {% elif category == 'Returns' %}bg-warning
-                                    {% elif category == 'Billing' %}bg-info
-                                    {% elif category == 'General Inquiry' %}bg-success
-                                    {% else %}bg-danger{% endif %} text-white">
+                <div class="col-lg-6">
+                    <div class="glass-card category-card p-4 h-100 
+                        {% if category == 'Technical Support' %}tech
+                        {% elif category == 'Billing' %}billing
+                        {% elif category == 'Returns' %}returns
+                        {% elif category == 'General Inquiry' %}inquiry
+                        {% else %}complaint{% endif %}">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <span class="badge-category 
+                                    {% if category == 'Technical Support' %}badge-tech
+                                    {% elif category == 'Billing' %}badge-billing
+                                    {% elif category == 'Returns' %}badge-returns
+                                    {% elif category == 'General Inquiry' %}badge-inquiry
+                                    {% else %}badge-complaint{% endif %}">
+                                    <i class="fas 
+                                        {% if category == 'Technical Support' %}fa-code-branch
+                                        {% elif category == 'Billing' %}fa-receipt
+                                        {% elif category == 'Returns' %}fa-undo-alt
+                                        {% elif category == 'General Inquiry' %}fa-info-circle
+                                        {% else %}fa-exclamation-triangle{% endif %}"></i>
                                     {{ category }}
                                 </span>
                             </div>
-                            <p class="text-muted">{{ description }}</p>
+                            <span class="small text-muted"><i class="fas fa-check-circle text-success me-1"></i> Trained</span>
                         </div>
+                        <p class="text-secondary mb-0" style="font-size: 0.95rem; line-height: 1.6;">{{ description }}</p>
                     </div>
                 </div>
                 {% endfor %}
@@ -238,16 +304,18 @@
         </div>
     </section>
 
-
-    <!-- CTA Section -->
-    <section class="cta-section">
-        <div class="container">
-            <div class="row justify-content-center">
-                <div class="col-lg-8 text-center">
-                    <h2 class="fw-bold mb-3">Ready to Streamline Your Support?</h2>
-                    <p class="lead text-muted mb-4">Join thousands of businesses using AI to improve their customer support efficiency</p>
-                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-5">
-                        <i class="fas fa-rocket me-2"></i>Get Started Free
+    <!-- Call to Action -->
+    <section class="py-5">
+        <div class="container py-4">
+            <div class="cta-box text-center">
+                <h2 class="display-6 fw-bold mb-3">Supercharge Your Support Workflow</h2>
+                <p class="text-secondary mx-auto mb-4" style="max-width: 600px;">Experience instant categorization, reduced ticket turnaround times, and higher customer satisfaction today.</p>
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <a href="{{ url_for('register') }}" class="btn-primary-glow px-4 py-3">
+                        <i class="fas fa-user-plus"></i> Create Free Account
+                    </a>
+                    <a href="{{ url_for('login') }}" class="btn-secondary-dark px-4 py-3">
+                        <i class="fas fa-lock"></i> Agent Login
                     </a>
                 </div>
             </div>
@@ -255,55 +323,26 @@
     </section>
 
     <!-- Footer -->
-    <footer class="footer">
+    <footer class="py-5" style="border-top: 1px solid var(--border-subtle); background: rgba(8, 12, 20, 0.95);">
         <div class="container">
-            <div class="row">
-                <div class="col-lg-4 mb-4 mb-lg-0">
-                    <h5><i class="fas fa-robot me-2"></i>TicketAI</h5>
-                    <p>AI-powered ticket classification system for modern customer support teams. Our system helps businesses automatically categorize and prioritize support tickets.</p>
-                    <div class="social-links mt-3">
-                        <a href="#" class="text-light me-3"><i class="fab fa-twitter"></i></a>
-                        <a href="#" class="text-light me-3"><i class="fab fa-facebook"></i></a>
-                        <a href="#" class="text-light me-3"><i class="fab fa-linkedin"></i></a>
-                        <a href="#" class="text-light"><i class="fab fa-github"></i></a>
+            <div class="row g-4 align-items-center justify-content-between">
+                <div class="col-md-5">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div style="width: 30px; height: 30px; border-radius: 8px; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-ticket-alt text-white small"></i>
+                        </div>
+                        <span class="fw-bold fs-5 text-white">Ticket<span class="gradient-text">AI</span></span>
                     </div>
-                </div>
-                <div class="col-lg-2 mb-4 mb-lg-0">
-                    <h5>Quick Links</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="#how-it-works" class="text-light text-decoration-none">How It Works</a></li>
-                        <li><a href="#" class="text-light text-decoration-none">Features</a></li>
-                        <li><a href="#" class="text-light text-decoration-none">Pricing</a></li>
-                        <li><a href="#" class="text-light text-decoration-none">FAQ</a></li>
-                    </ul>
-                </div>
-                <div class="col-lg-3 mb-4 mb-lg-0">
-                    <h5>Categories</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="#" class="text-light text-decoration-none">Technical Support</a></li>
-                        <li><a href="#" class="text-light text-decoration-none">Returns</a></li>
-                        <li><a href="#" class="text-light text-decoration-none">Billing</a></li>
-                        <li><a href="#" class="text-light text-decoration-none">General Inquiry</a></li>
-                        <li><a href="#" class="text-light text-decoration-none">Complaint</a></li>
-                    </ul>
-                </div>
-                <div class="col-lg-3">
-                    <h5>Contact Us</h5>
-                    <ul class="list-unstyled">
-                        <li class="text-light"><i class="fas fa-envelope me-2"></i> support@ticketai.com</li>
-                        <li class="text-light"><i class="fas fa-phone me-2"></i> +91 9865125698</li>
-                        <li class="text-light"><i class="fas fa-map-marker-alt me-2"></i> 123 Tech Street, Karnataka, India</li>
-                    </ul>
-                </div>
-            </div>
-            <hr class="my-4" style="border-color: rgba(255,255,255,0.1);">
-            <div class="row align-items-center">
-                <div class="col-md-6">
-                    <p class="mb-0">&copy; 2025 TicketAI. All rights reserved.</p>
+                    <p class="text-muted small mb-0">Production-grade automated ticket classification engine with Calibrated NLP inference and seamless support routing.</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <a href="#" class="text-light text-decoration-none me-3">Privacy Policy</a>
-                    <a href="#" class="text-light text-decoration-none">Terms of Service</a>
+                    <div class="d-flex justify-content-md-end gap-4 small text-secondary">
+                        <a href="#features" class="text-decoration-none text-secondary">Features</a>
+                        <a href="#how-it-works" class="text-decoration-none text-secondary">Workflow</a>
+                        <a href="#categories" class="text-decoration-none text-secondary">Categories</a>
+                        <a href="{{ url_for('login') }}" class="text-decoration-none text-secondary">Login</a>
+                    </div>
+                    <div class="text-muted small mt-2">&copy; 2026 TicketAI Platform. All rights reserved.</div>
                 </div>
             </div>
         </div>

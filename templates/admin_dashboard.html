@@ -3,182 +3,283 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - TicketAI</title>
+    <title>Admin Dashboard — TicketAI</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <style>
-        .stat-card {
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
-            color: white;
+        .admin-stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            backdrop-filter: var(--glass-blur);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.25s ease;
         }
-        .stat-card.total { background: linear-gradient(135deg, #667eea, #764ba2); }
-        .stat-card.open { background: linear-gradient(135deg, #f093fb, #f5576c); }
-        .stat-card.resolved { background: linear-gradient(135deg, #4facfe, #00f2fe); }
-        .ticket-card {
-            border-left: 4px solid;
-            margin-bottom: 15px;
+        .admin-stat-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.2);
         }
-        .ticket-card.technical { border-color: #0d6efd; }
-        .ticket-card.returns { border-color: #ffc107; }
-        .ticket-card.billing { border-color: #198754; }
-        .ticket-card.general { border-color: #0dcaf0; }
-        .ticket-card.complaint { border-color: #dc3545; }
-        .category-badge {
-            font-size: 0.8em;
-            padding: 4px 8px;
+        .ticket-item-card {
+            background: var(--bg-card);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-md);
+            padding: 22px;
+            margin-bottom: 16px;
+            border-left: 4px solid var(--primary);
+            transition: all 0.25s ease;
+        }
+        .ticket-item-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .ticket-item-card.technicalsupport { border-left-color: var(--tech-color); }
+        .ticket-item-card.billing { border-left-color: var(--billing-color); }
+        .ticket-item-card.returns { border-left-color: var(--returns-color); }
+        .ticket-item-card.generalinquiry { border-left-color: var(--inquiry-color); }
+        .ticket-item-card.complaint { border-left-color: var(--complaint-color); }
+        
+        .modal-content-dark {
+            background: #111827;
+            border: 1px solid var(--border-card);
+            color: var(--text-primary);
+            border-radius: var(--radius-md);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+        }
+        .modal-content-dark .modal-header {
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .modal-content-dark .modal-footer {
+            border-top: 1px solid var(--border-subtle);
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="#">
-                <i class="fas fa-ticket-alt"></i> TicketAI - Admin
+    <!-- Admin Navigation -->
+    <nav class="navbar navbar-expand-lg sticky-top" style="background: rgba(10, 14, 23, 0.9); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-subtle);">
+        <div class="container py-2">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                <div style="width: 36px; height: 36px; border-radius: 9px; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(99,102,241,0.5);">
+                    <i class="fas fa-shield-alt text-white"></i>
+                </div>
+                <div class="d-flex flex-column">
+                    <span class="fw-bold fs-5 text-white lh-1">Ticket<span class="gradient-text">AI</span></span>
+                    <span class="small text-muted text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.08em;">Admin Console</span>
+                </div>
             </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+            <div class="navbar-nav ms-auto d-flex flex-row align-items-center gap-3">
+                <button class="theme-toggle-btn" onclick="toggleTheme()" type="button" title="Toggle theme">
+                    <i class="fas fa-sun"></i>
+                </button>
+                <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                    <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> Live System
+                </span>
+                <a class="btn-secondary-dark btn-sm py-1 px-3" href="{{ url_for('logout') }}">
+                    <i class="fas fa-sign-out-alt me-1"></i> Logout
+                </a>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-3">
-                <div class="stat-card total">
-                    <h3>{{ stats|sum(attribute='total') }}</h3>
-                    <p>Total Tickets</p>
+    <div class="container py-4">
+        <!-- Top Stats Row -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3 col-6">
+                <div class="admin-stat-card">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase">Total Tickets</span>
+                        <h2 class="display-6 fw-bold mb-0 text-white mt-1">{{ stats|sum(attribute='total') or 0 }}</h2>
+                    </div>
+                    <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card open">
-                    <h3>{{ stats|sum(attribute='open') }}</h3>
-                    <p>Open Tickets</p>
+            <div class="col-md-3 col-6">
+                <div class="admin-stat-card">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase">Open Queries</span>
+                        <h2 class="display-6 fw-bold mb-0 text-warning mt-1">{{ stats|sum(attribute='open') or 0 }}</h2>
+                    </div>
+                    <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">
+                        <i class="fas fa-clock"></i>
+                    </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card resolved">
-                    <h3>{{ stats|sum(attribute='resolved') }}</h3>
-                    <p>Resolved Tickets</p>
+            <div class="col-md-3 col-6">
+                <div class="admin-stat-card">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase">Resolved</span>
+                        <h2 class="display-6 fw-bold mb-0 text-success mt-1">{{ stats|sum(attribute='resolved') or 0 }}</h2>
+                    </div>
+                    <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">
+                        <i class="fas fa-check-double"></i>
+                    </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card" style="background: linear-gradient(135deg, #5ee7df, #b490ca);">
-                    <h3>{{ stats|length }}</h3>
-                    <p>Categories</p>
+            <div class="col-md-3 col-6">
+                <div class="admin-stat-card">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase">Categories</span>
+                        <h2 class="display-6 fw-bold mb-0 gradient-text-cyan mt-1">{{ stats|length or 5 }}</h2>
+                    </div>
+                    <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+                        <i class="fas fa-tags"></i>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Filters -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <form method="GET" class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Status</option>
-                            <option value="Open" {% if status_filter == 'Open' %}selected{% endif %}>Open</option>
-                            <option value="Resolved" {% if status_filter == 'Resolved' %}selected{% endif %}>Resolved</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Category</label>
-                        <select name="category" class="form-select">
-                            <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
-                            {% for category in categories %}
-                            <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">&nbsp;</label>
-                        <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
-                    </div>
-                </form>
-            </div>
+        <!-- Filter Controls -->
+        <div class="glass-card p-4 mb-4">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label text-secondary small fw-semibold">Filter by Status</label>
+                    <select name="status" class="form-select form-select-dark">
+                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+                        <option value="Open" {% if status_filter == 'Open' %}selected{% endif %}>Open</option>
+                        <option value="Resolved" {% if status_filter == 'Resolved' %}selected{% endif %}>Resolved</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label text-secondary small fw-semibold">Filter by AI Category</label>
+                    <select name="category" class="form-select form-select-dark">
+                        <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
+                        {% for category in categories %}
+                        <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn-primary-glow w-100 justify-content-center">
+                        <i class="fas fa-filter"></i> Apply Filters
+                    </button>
+                </div>
+            </form>
         </div>
 
-        <!-- Tickets List -->
-        <div class="card">
-            <div class="card-header">
-                <h4 class="mb-0">All Tickets</h4>
+        <!-- Tickets Queue Header -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 class="fw-bold mb-0">Support Tickets Feed</h4>
+                <p class="text-secondary small mb-0">Live triage queue sorted by newest submission</p>
             </div>
-            <div class="card-body">
-                {% if tickets %}
-                    {% for ticket in tickets %}
-                    <div class="card ticket-card {{ ticket.predicted_category.lower().replace(' ', '') }}">
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-8">
-                                    <h5 class="card-title">
-                                        Ticket #{{ ticket.id }}
-                                        <span class="badge {% if ticket.status == 'Open' %}bg-warning{% else %}bg-success{% endif %}">
-                                            {{ ticket.status }}
-                                        </span>
-                                        <span class="badge category-badge 
-                                            {% if ticket.predicted_category == 'Technical Support' %}bg-primary
-                                            {% elif ticket.predicted_category == 'Returns' %}bg-warning
-                                            {% elif ticket.predicted_category == 'Billing' %}bg-success
-                                            {% elif ticket.predicted_category == 'General Inquiry' %}bg-info
-                                            {% else %}bg-danger{% endif %}">
-                                            {{ ticket.predicted_category }}
-                                        </span>
-                                    </h5>
-                                    <p class="card-text">{{ ticket.ticket_text }}</p>
-                                    <p class="text-muted">
-                                        <small>
-                                            Created: {{ ticket.created_at }} | 
-                                            User: {{ ticket.username or 'N/A' }} |
-                                            Confidence: {{ "%.1f"|format(ticket.confidence) }}%
-                                        </small>
-                                    </p>
-                                    {% if ticket.resolution_notes %}
-                                    <div class="alert alert-success mt-2">
-                                        <strong>Resolution:</strong> {{ ticket.resolution_notes }}
-                                        <br><small>Resolved at: {{ ticket.resolved_at }}</small>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                <div class="col-md-4 text-end">
-                                    {% if ticket.status == 'Open' %}
-                                    <button class="btn btn-success btn-sm" onclick="resolveTicket('{{ ticket.id }}')">
-                                        <i class="fas fa-check"></i> Resolve
-                                    </button>
-                                    {% endif %}
-                                </div>
+            <span class="badge rounded-pill" style="background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-subtle); padding: 6px 14px;">
+                {{ tickets|length }} matching
+            </span>
+        </div>
+
+        <!-- Tickets Stream -->
+        <div class="mb-5">
+            {% if tickets %}
+                {% for ticket in tickets %}
+                <div class="ticket-item-card {{ ticket.predicted_category.lower().replace(' ', '') }}">
+                    <div class="row align-items-start g-3">
+                        <div class="col-lg-9">
+                            <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+                                <span class="fw-bold text-white fs-6">Ticket #{{ ticket.id }}</span>
+                                
+                                <span class="badge-category {% if ticket.status == 'Open' %}badge-open{% else %}badge-resolved{% endif %}">
+                                    <i class="fas {% if ticket.status == 'Open' %}fa-clock{% else %}fa-check{% endif %}"></i>
+                                    {{ ticket.status }}
+                                </span>
+
+                                <span class="badge-category 
+                                    {% if ticket.predicted_category == 'Technical Support' %}badge-tech
+                                    {% elif ticket.predicted_category == 'Billing' %}badge-billing
+                                    {% elif ticket.predicted_category == 'Returns' %}badge-returns
+                                    {% elif ticket.predicted_category == 'General Inquiry' %}badge-inquiry
+                                    {% else %}badge-complaint{% endif %}">
+                                    <i class="fas 
+                                        {% if ticket.predicted_category == 'Technical Support' %}fa-code-branch
+                                        {% elif ticket.predicted_category == 'Billing' %}fa-receipt
+                                        {% elif ticket.predicted_category == 'Returns' %}fa-undo-alt
+                                        {% elif ticket.predicted_category == 'General Inquiry' %}fa-info-circle
+                                        {% else %}fa-exclamation-triangle{% endif %}"></i>
+                                    {{ ticket.predicted_category }}
+                                </span>
+
+                                <span class="badge rounded-pill small" style="background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.75rem;">
+                                    {{ "%.1f"|format(ticket.confidence) }}% confidence
+                                </span>
                             </div>
+
+                            <p class="text-light mb-3" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
+
+                            <div class="d-flex align-items-center flex-wrap gap-3 small text-muted">
+                                <span><i class="far fa-user me-1 text-secondary"></i> {{ ticket.username or 'Customer' }}</span>
+                                {% if ticket.email %}
+                                <span><i class="far fa-envelope me-1 text-secondary"></i> {{ ticket.email }}</span>
+                                {% endif %}
+                                <span><i class="far fa-clock me-1 text-secondary"></i> {{ ticket.created_at }}</span>
+                            </div>
+
+                            {% if ticket.resolution_notes %}
+                            <div class="mt-3 p-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+                                <div class="small fw-bold text-success mb-1">
+                                    <i class="fas fa-check-circle me-1"></i> Resolution Summary:
+                                </div>
+                                <div class="small text-light">{{ ticket.resolution_notes }}</div>
+                                <div class="text-muted" style="font-size: 0.75rem; margin-top: 4px;">Resolved at: {{ ticket.resolved_at }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-lg-3 text-lg-end">
+                            {% if ticket.status == 'Open' %}
+                            <button class="btn btn-success btn-sm px-3 py-2 fw-semibold rounded-3 shadow-sm" onclick="resolveTicket('{{ ticket.id }}')">
+                                <i class="fas fa-check me-1"></i> Mark Resolved
+                            </button>
+                            {% else %}
+                            <span class="text-success small fw-semibold">
+                                <i class="fas fa-shield-check me-1"></i> Completed
+                            </span>
+                            {% endif %}
                         </div>
                     </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-center text-muted">No tickets found.</p>
-                {% endif %}
-            </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="glass-card p-5 text-center">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5 class="text-white">No Tickets Found</h5>
+                    <p class="text-secondary small mb-0">No customer queries match your selected filter criteria.</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- Resolve Ticket Modal -->
     <div class="modal fade" id="resolveModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content modal-content-dark">
                 <div class="modal-header">
-                    <h5 class="modal-title">Resolve Ticket</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title fw-bold text-white">
+                        <i class="fas fa-check-circle text-success me-2"></i>Resolve Ticket
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <form id="resolveForm">
                         <input type="hidden" id="resolveTicketId">
                         <div class="mb-3">
-                            <label for="resolutionNotes" class="form-label">Resolution Notes</label>
-                            <textarea class="form-control" id="resolutionNotes" rows="4" required></textarea>
+                            <label for="resolutionNotes" class="form-label text-secondary small fw-semibold">Resolution Notes for Customer</label>
+                            <textarea class="form-control form-control-dark" id="resolutionNotes" rows="4" placeholder="Detail the fix, steps taken, or refund confirmation provided to the customer..." required></textarea>
+                            <div class="form-text text-muted small mt-1">These notes will be recorded in the audit log and emailed to the user.</div>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-success" onclick="submitResolution()">Resolve Ticket</button>
+                <div class="modal-footer p-3">
+                    <button type="button" class="btn-secondary-dark btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success btn-sm px-4 fw-semibold" onclick="submitResolution()">
+                        <i class="fas fa-check me-1"></i> Submit Resolution
+                    </button>
                 </div>
             </div>
         </div>
