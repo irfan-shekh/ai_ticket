@@ -600,8 +600,66 @@ def get_comprehensive_dataset():
     for text in complaint_samples:
         data.append({"text": text, "category": "Complaint"})
         
-    df = pd.DataFrame(data)
-    return df
+    df_curated = pd.DataFrame(data)
+
+    # Ingest customer_support_tickets.csv if available
+    csv_candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'customer_support_tickets.csv'),
+        os.path.join('models', 'customer_support_tickets.csv'),
+        'customer_support_tickets.csv'
+    ]
+    csv_path = next((p for p in csv_candidates if os.path.exists(p)), None)
+
+    if csv_path:
+        print(f"[DATA] Ingesting CSV dataset from: {csv_path}")
+        df_csv = pd.read_csv(csv_path)
+
+        subject_to_category = {
+            # Technical Support
+            'Software bug': 'Technical Support',
+            'Hardware issue': 'Technical Support',
+            'Battery life': 'Technical Support',
+            'Network problem': 'Technical Support',
+            'Installation support': 'Technical Support',
+            'Product setup': 'Technical Support',
+            'Account access': 'Technical Support',
+            'Data loss': 'Technical Support',
+            'Display issue': 'Technical Support',
+
+            # Billing
+            'Payment issue': 'Billing',
+
+            # Returns
+            'Refund request': 'Returns',
+
+            # General Inquiry
+            'Product recommendation': 'General Inquiry',
+            'Product compatibility': 'General Inquiry',
+            'Peripheral compatibility': 'General Inquiry',
+
+            # Complaint
+            'Delivery problem': 'Complaint',
+            'Cancellation request': 'Complaint'
+        }
+
+        df_csv['category'] = df_csv['Ticket Subject'].map(subject_to_category)
+
+        def clean_csv_text(row):
+            product = str(row['Product Purchased']) if pd.notnull(row['Product Purchased']) else 'product'
+            desc = str(row['Ticket Description']) if pd.notnull(row['Ticket Description']) else ''
+            desc = desc.replace('{product_purchased}', product)
+            subject = str(row['Ticket Subject']) if pd.notnull(row['Ticket Subject']) else ''
+            return f"{subject}. {desc}"
+
+        df_csv['text'] = df_csv.apply(clean_csv_text, axis=1)
+        valid_csv = df_csv[df_csv['category'].notnull()][['text', 'category']]
+        print(f"[DATA] Ingested {len(valid_csv)} records from CSV.")
+
+        df = pd.concat([valid_csv, df_curated], ignore_index=True)
+        print(f"[DATA] Combined dataset size: {len(df)} total records across 5 categories.")
+        return df
+
+    return df_curated
 
 # -----------------------------------------------------------------------------
 # 2. Text Preprocessing
@@ -689,7 +747,7 @@ def build_and_train_pipeline():
         ngram_range=(1, 2),
         sublinear_tf=True,
         min_df=1,
-        max_features=4000
+        max_features=6000
     )
     
     char_vectorizer = TfidfVectorizer(
@@ -697,7 +755,7 @@ def build_and_train_pipeline():
         ngram_range=(3, 5),
         sublinear_tf=True,
         min_df=1,
-        max_features=4000
+        max_features=6000
     )
     
     feature_union = FeatureUnion([
@@ -798,7 +856,7 @@ def build_and_train_pipeline():
     print(cm_df)
     
     # Save the best model
-    output_dir = r"C:\ai_ticket\models"
+    output_dir = os.path.dirname(os.path.abspath(__file__))
     os.makedirs(output_dir, exist_ok=True)
     
     model_path = os.path.join(output_dir, "enhanced_ticket_classifier.joblib")
