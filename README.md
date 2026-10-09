@@ -26,7 +26,7 @@
   - Calibrated probability estimates outputting overall confidence (*High, Medium, Low*).
   - **Top-3 Ranked Predictions**: Transparent multi-category suggestions with probability breakdown.
 - **High Accuracy & Generalization**:
-  - Evaluated with **5-Fold Stratified Cross-Validation**, achieving **85%+ test accuracy** and **100% precision on real-world validation test suites**.
+  - Evaluated on **8,989 annotated customer support tickets**, achieving **97.89% test accuracy**, **0.979 weighted F1-score**, and **100% precision on real-world edge cases**.
 
 ### 💻 Full-Stack Web Application
 - **Customer Portal**:
@@ -51,7 +51,7 @@ graph TD
     User([Customer / User]) -->|1. Submit Ticket| WebUI[Flask Web App]
     WebUI -->|2. Preprocess Text| Preprocessor[NLTK Preprocessor<br/>Lemmatization & Negation Filtering]
     Preprocessor -->|3. Feature Extraction| Features[FeatureUnion<br/>Word TF-IDF + Char-wb TF-IDF]
-    Features -->|4. Predict Category & Probabilities| Model[Trained Classifier<br/>Logistic Regression / Calibrated LinearSVC]
+    Features -->|4. Predict Category & Probabilities| Model[Trained Classifier<br/>Calibrated LinearSVC]
     Model -->|5. Category + Top-3 + Confidence| WebUI
     WebUI -->|6. Store Ticket| DB[(SQLite Database<br/>tickets.db)]
     WebUI -->|7. Send HTML Email| SMTP[SMTP Server / Gmail API]
@@ -66,24 +66,25 @@ graph TD
 
 ```text
 ai_ticket/
-├── app.py                      # Main Flask application (routes, auth, APIs, email)
-├── requirements.txt            # Python dependencies
-├── tickets.db                  # SQLite database (users, tickets, settings)
-├── download.py                 # NLTK resource downloader
-├── templates/                  # Jinja2 HTML templates
-│   ├── landing.html            # Public landing page
-│   ├── index.html              # Customer ticket creation & live AI preview
-│   ├── dashboard.html          # User ticket history & dashboard
-│   ├── admin_dashboard.html    # Support agent admin management portal
-│   ├── login.html              # Authentication login page
-│   └── register.html           # User registration page
-├── models/                     # Machine learning models & training pipeline
-│   ├── train_model.py          # Complete training, benchmarking & serialization script
-│   ├── ticket_classification_updated.ipynb  # Interactive Jupyter notebook
-│   ├── enhanced_ticket_classifier.joblib     # Production serialized pipeline
-│   ├── enhanced_customer_support_model_90plus.pkl # Backup pickle model
-│   └── enhanced_model_metadata.json          # Metrics, confusion matrix & metadata
-└── documentation/              # Academic papers, presentations & research docs
+├── app.py                                        # Main Flask application (routes, auth, APIs, email)
+├── requirements.txt                              # Python dependencies
+├── tickets.db                                    # SQLite database (users, tickets, settings)
+├── download.py                                   # NLTK resource downloader (stopwords, wordnet)
+├── templates/                                    # Jinja2 HTML templates
+│   ├── landing.html                              # Public landing page
+│   ├── index.html                                # Customer ticket creation & live AI preview
+│   ├── dashboard.html                            # User ticket history & dashboard
+│   ├── admin_dashboard.html                      # Support agent admin management portal
+│   ├── login.html                                # Authentication login page
+│   └── register.html                             # User registration page
+├── models/                                       # Machine learning models & training pipeline
+│   ├── customer_support_tickets.csv              # Comprehensive dataset (8,989 tickets)
+│   ├── train_model.py                            # Complete training, benchmarking & serialization script
+│   ├── ticket_classification_updated.ipynb       # Interactive Jupyter notebook
+│   ├── enhanced_ticket_classifier.joblib         # Production serialized pipeline
+│   ├── enhanced_customer_support_model_90plus.pkl# Serialized 90%+ model artifact
+│   └── enhanced_model_metadata.json              # Model metrics, per-class stats & metadata
+└── documentation/                                # Academic papers, presentations & research docs
 ```
 
 ---
@@ -96,7 +97,7 @@ ai_ticket/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/ai_ticket.git
+git clone https://github.com/irfan-shekh/ai_ticket.git
 cd ai_ticket
 ```
 
@@ -124,7 +125,7 @@ python download.py
 ```
 
 ### 5. Configure Email Credentials (Optional)
-To enable real email dispatch, configure your SMTP settings in [app.py](file:///c:/ai_ticket/app.py) or set environment variables:
+To enable real email dispatch, configure your SMTP settings in [app.py](app.py) or set environment variables:
 ```python
 app.config['SMTP_SERVER'] = 'smtp.gmail.com'
 app.config['SMTP_PORT'] = 587
@@ -156,20 +157,21 @@ http://127.0.0.1:5000
 
 ## 🧪 Model Training & Retraining
 
-To retrain the classification pipeline with updated training samples or newly exported tickets:
+To train or retrain the enhanced classification pipeline:
 
 ```bash
 python models/train_model.py
 ```
 
 This script will:
-1. Load the comprehensive dataset across all 5 operational categories.
-2. Run **5-Fold Stratified Cross-Validation** benchmarking candidate models.
-3. Output classification reports, precision, recall, and confusion matrices.
-4. Export the top-performing pipeline to `models/enhanced_ticket_classifier.joblib`.
-5. Update `models/enhanced_model_metadata.json` with new performance figures.
+1. Ingest `models/customer_support_tickets.csv` (8,989 labeled samples).
+2. Apply word & sub-word n-gram feature extraction.
+3. Train and benchmark candidate algorithms with **Calibrated LinearSVC**.
+4. Output classification reports, precision, recall, and confusion matrices.
+5. Export production models to `models/enhanced_ticket_classifier.joblib` and `models/enhanced_customer_support_model_90plus.pkl`.
+6. Update `models/enhanced_model_metadata.json` with current performance figures.
 
-You can also run [models/ticket_classification_updated.ipynb](file:///c:/ai_ticket/models/ticket_classification_updated.ipynb) interactively in Jupyter or Google Colab.
+You can also run [models/ticket_classification_updated.ipynb](models/ticket_classification_updated.ipynb) interactively in Jupyter or Google Colab.
 
 ---
 
@@ -209,17 +211,20 @@ Submits a ticket description for automated AI classification and storage.
 
 ---
 
-## 📊 Benchmark Results
+## 📊 Benchmark Results (Enhanced Model)
 
-| Category | Precision | Recall | F1-Score |
-| :--- | :---: | :---: | :---: |
-| **Billing** | 0.90 | 0.95 | 0.93 |
-| **Returns** | 0.89 | 0.85 | 0.87 |
-| **Technical Support** | 0.81 | 0.92 | 0.86 |
-| **Complaint** | 0.83 | 0.79 | 0.81 |
-| **General Inquiry** | 0.79 | 0.71 | 0.75 |
-| **Overall Accuracy** | — | — | **85% – 88%** |
-| **Real-World Test Suite** | — | — | **100% (10/10)** |
+Evaluated on the full 8,989-sample dataset with a test partition:
+
+| Category | Precision | Recall | F1-Score | Support |
+| :--- | :---: | :---: | :---: | :---: |
+| **Technical Support** | **0.99** | **0.99** | **0.99** | 971 |
+| **General Inquiry** | **0.98** | **0.97** | **0.97** | 338 |
+| **Returns** | **0.97** | **0.97** | **0.97** | 135 |
+| **Complaint** | **0.97** | **0.94** | **0.96** | 229 |
+| **Billing** | **0.93** | **0.97** | **0.95** | 125 |
+| **Overall Accuracy** | — | — | **97.89%** | **1,798 test samples** |
+| **Weighted F1-Score**| — | — | **0.979** | — |
+| **Macro F1-Score**   | — | — | **0.968** | — |
 
 ---
 
