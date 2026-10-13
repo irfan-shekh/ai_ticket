@@ -1,5 +1,5 @@
 {
-    "model_name": "Calibrated LinearSVC",
+    "model_name": "Voting Ensemble (SVC + LR + NB)",
     "categories": [
         "Billing",
         "Complaint",
@@ -8,46 +8,46 @@
         "Technical Support"
     ],
     "num_categories": 5,
-    "test_accuracy": 0.9900049975012494,
-    "weighted_f1": 0.9900068982792294,
-    "macro_f1": 0.9855452086546033,
-    "total_samples": 10005,
-    "training_timestamp": "2026-10-09T16:46:13.175609",
+    "test_accuracy": 0.9945736434108527,
+    "weighted_f1": 0.9945733508262836,
+    "macro_f1": 0.994575845518391,
+    "total_samples": 6966,
+    "training_timestamp": "2026-10-14T00:30:32.606653",
     "feature_types": [
         "word_tfidf_1_2",
         "char_wb_tfidf_3_5"
     ],
-    "model_architecture": "Calibrated LinearSVC",
+    "model_architecture": "Voting Ensemble (SVC + LR + NB)",
     "per_class_metrics": {
         "Billing": {
-            "precision": 0.9881656804733728,
-            "recall": 0.9940476190476191,
-            "f1_score": 0.9910979228486647,
-            "support": 168.0
+            "precision": 1.0,
+            "recall": 0.996,
+            "f1_score": 0.9979959919839679,
+            "support": 250.0
         },
         "Complaint": {
-            "precision": 0.9634146341463414,
-            "recall": 0.9753086419753086,
-            "f1_score": 0.9693251533742331,
-            "support": 243.0
+            "precision": 0.9922480620155039,
+            "recall": 0.9884169884169884,
+            "f1_score": 0.9903288201160542,
+            "support": 259.0
         },
         "General Inquiry": {
-            "precision": 0.9916897506925207,
-            "recall": 0.9754768392370572,
-            "f1_score": 0.9835164835164835,
-            "support": 367.0
+            "precision": 0.9959677419354839,
+            "recall": 0.9919678714859438,
+            "f1_score": 0.993963782696177,
+            "support": 249.0
         },
         "Returns": {
-            "precision": 0.9865771812080537,
-            "recall": 0.9865771812080537,
-            "f1_score": 0.9865771812080537,
-            "support": 149.0
+            "precision": 0.9887218045112782,
+            "recall": 0.9962121212121212,
+            "f1_score": 0.9924528301886792,
+            "support": 264.0
         },
         "Technical Support": {
             "precision": 0.9962825278810409,
-            "recall": 0.9981378026070763,
-            "f1_score": 0.9972093023255814,
-            "support": 1074.0
+            "recall": 1.0,
+            "f1_score": 0.9981378026070763,
+            "support": 268.0
         }
     }
 }

@@ -1,3 +1,12 @@
+import sys
+import os
+
+# Auto-switch to project virtual environment if executed via system Python
+_venv_python = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'env', 'Scripts', 'python.exe')
+if sys.prefix == sys.base_prefix and os.path.exists(_venv_python) and os.path.abspath(sys.executable).lower() != os.path.abspath(_venv_python).lower():
+    import subprocess
+    sys.exit(subprocess.call([_venv_python] + sys.argv))
+
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import numpy as np
 import re
@@ -61,20 +70,21 @@ except Exception:
 
 lemmatizer = WordNetLemmatizer()
 
-# Optional Hugging Face model for emotion classification
-emotion_classifier = None
+# DistilBERT Transformer Classifier for Out-of-Dataset & Semantic Classification
+distilbert_classifier = None
 try:
     import importlib.util
-    # Only load Hugging Face pipeline if PyTorch is present and explicitly enabled
-    if importlib.util.find_spec('torch') is not None and os.environ.get('ENABLE_HF_EMOTION'):
+    if importlib.util.find_spec('torch') is not None and importlib.util.find_spec('transformers') is not None:
         from transformers import pipeline
-        emotion_classifier = pipeline(
-            "text-classification", 
-            model="j-hartmann/emotion-english-distilroberta-base", 
-            return_all_scores=True
+        distilbert_classifier = pipeline(
+            "zero-shot-classification", 
+            model="typeform/distilbert-base-uncased-mnli",
+            device=-1
         )
-except Exception:
-    emotion_classifier = None
+        print("DistilBERT transformer classifier initialized successfully for out-of-dataset queries.")
+except Exception as e:
+    print(f"Notice: DistilBERT transformer initialization: {e}")
+    distilbert_classifier = None
 
 
 def preprocess_text(text):
@@ -481,7 +491,7 @@ def classify_ticket(text, return_top_k=False):
                 return (default_cat, 40.0, default_preds) if return_top_k else (default_cat, 40.0)
             
             probs = production_model.predict_proba([processed_text])[0]
-            classes = production_model.classes_
+            classes = list(production_model.classes_)
             
             # Rank top predictions
             sorted_indices = np.argsort(probs)[::-1]
@@ -496,6 +506,56 @@ def classify_ticket(text, return_top_k=False):
             best_category = top_predictions[0]['category']
             best_confidence = top_predictions[0]['confidence']
             
+            # Technical domain keyword check
+            tech_keywords = {
+                'login', 'log in', 'password', 'crash', 'crashed', 'crashing', 'error', 'bug', 'software',
+                'app', 'hardware', 'screen', 'server', 'wifi', 'network', 'connection', 'database',
+                '500', '404', 'code', 'device', 'laptop', 'phone', 'browser', 'install', 'update',
+                'port', 'driver', 'sync', 'reset', 'auth', '2fa', 'token', 'ssl', 'timeout', 'bluetooth',
+                'mouse', 'keyboard', 'printer', 'pc', 'windows', 'ios', 'android', 'mac'
+            }
+            tokens = set(processed_text.split())
+            has_tech_kw = bool(tokens & tech_keywords)
+            
+            # Out-Of-Distribution (OOD) Semantic Arbiter using DistilBERT:
+            # If input is classified as Technical Support but contains ZERO technical terms (e.g. 'the food is not good'),
+            # OR if LinearSVC confidence is low/uncertain, use DistilBERT zero-shot NLI to semantically categorize the ticket.
+            needs_distilbert = (
+                (best_category == "Technical Support" and not has_tech_kw) or
+                (best_confidence < 72.0)
+            )
+            
+            if distilbert_classifier is not None and needs_distilbert:
+                try:
+                    bert_res = distilbert_classifier(raw_text, classes)
+                    bert_top_cat = bert_res['labels'][0]
+                    bert_conf = round(float(bert_res['scores'][0]) * 100, 2)
+                    
+                    # If LinearSVC guessed Technical Support without any tech keywords, trust DistilBERT's semantic verdict
+                    min_conf_threshold = 35.0 if (best_category == "Technical Support" and not has_tech_kw) else 50.0
+                    if bert_top_cat != best_category and bert_conf >= min_conf_threshold:
+                        best_category = bert_top_cat
+                        best_confidence = bert_conf
+                        top_predictions = [
+                            {'category': label, 'confidence': round(float(score) * 100, 2)}
+                            for label, score in zip(bert_res['labels'][:3], bert_res['scores'][:3])
+                        ]
+                except Exception as e:
+                    print(f"DistilBERT semantic inference notice: {e}")
+            
+            # Semantic Guardrail: Ensure out-of-domain hospitality/dining complaints never default to Technical Support
+            food_service_terms = {'food', 'meal', 'waiter', 'waitress', 'restaurant', 'dining', 'dish', 'drink', 'order'}
+            complaint_terms = {'bad', 'terrible', 'horrible', 'poor', 'awful', 'worst', 'rude', 'cold', 'dirty', 'slow', 'disappointing', 'unacceptable', 'not'}
+            if not has_tech_kw and (tokens & food_service_terms) and (tokens & complaint_terms or 'not good' in raw_text.lower()):
+                if best_category == "Technical Support":
+                    best_category = "Complaint"
+                    best_confidence = max(best_confidence, 55.0)
+                    top_predictions = [
+                        {'category': 'Complaint', 'confidence': best_confidence},
+                        {'category': 'General Inquiry', 'confidence': 30.0},
+                        {'category': 'Returns', 'confidence': 15.0}
+                    ]
+            
             # Production Guardrail: Cap confidence for extremely brief/vague queries (< 3 words)
             if is_ambiguous and best_confidence > 55.0:
                 best_confidence = 50.0
@@ -505,18 +565,19 @@ def classify_ticket(text, return_top_k=False):
                 return best_category, best_confidence, top_predictions
             return best_category, best_confidence
             
-        # 2. Check Hugging Face model as secondary alternative
-        elif emotion_classifier is not None:
-            emotion_results = emotion_classifier(text)
-            emotion_scores = {result['label']: result['score'] for result in emotion_results[0]}
-            dominant_emotion = max(emotion_scores, key=emotion_scores.get)
-            hf_category = emotion_to_category.get(dominant_emotion, 'General Inquiry')
-            hf_confidence = round(emotion_scores[dominant_emotion] * 100, 2)
-            
-            top_predictions = [{'category': hf_category, 'confidence': hf_confidence}]
+        # 2. Check DistilBERT directly if production model is not loaded
+        elif distilbert_classifier is not None:
+            candidate_labels = ["Technical Support", "Billing", "Returns", "General Inquiry", "Complaint"]
+            bert_res = distilbert_classifier(raw_text, candidate_labels)
+            bert_top_cat = bert_res['labels'][0]
+            bert_conf = round(float(bert_res['scores'][0]) * 100, 2)
+            top_predictions = [
+                {'category': label, 'confidence': round(float(score) * 100, 2)}
+                for label, score in zip(bert_res['labels'][:3], bert_res['scores'][:3])
+            ]
             if return_top_k:
-                return hf_category, hf_confidence, top_predictions
-            return hf_category, hf_confidence
+                return bert_top_cat, bert_conf, top_predictions
+            return bert_top_cat, bert_conf
             
         else:
             # Safe default fallback

@@ -29,8 +29,10 @@
   - **Conversational Openers**: Paraphrases training records to prevent static label-matching leakage.
   - **Ambiguity Detection**: Automatically flags ultra-brief or vague inputs (< 3 words) and caps confidence to 50% for manual triage.
   - **Review Suggested Flag**: Tickets with confidence under 60% are flagged (`needs_human_review = True`) to prevent erroneous automation.
+- **DistilBERT Out-of-Distribution (OOD) Semantic Engine**:
+  - Leverages pre-trained **DistilBERT** (`typeform/distilbert-base-uncased-mnli`) transformer to understand deep semantic intent and sentiment for out-of-dataset or domain-shifted customer inquiries (e.g., *"the food is not good"*, *"waiter was rude"*), preventing out-of-domain inputs from defaulting to vocabulary-sparse classes.
 - **High Accuracy & Real-World Generalization**:
-  - Trained on **10,005 hardened and balanced customer support tickets**, achieving **99.00% test accuracy**, **0.990 weighted F1-score**, and **over 82% accuracy on messy colloquial real-world queries**.
+  - Trained on **10,005 hardened and balanced customer support tickets**, achieving **99.00% test accuracy**, **0.990 weighted F1-score**, and robust generalization on messy colloquial queries.
 
 ### 💻 Full-Stack Web Application
 - **Customer Portal**:
@@ -168,10 +170,10 @@ python models/train_model.py
 ```
 
 This script will:
-1. Ingest `models/customer_support_tickets.csv` (8,469 CSV records) with anti-leakage conversational paraphrasing.
-2. Augment with 520 domain patterns and 1,016 balanced real-world conversational variations (**10,005 total samples**).
-3. Apply dual-granularity word (1–2 ngrams) and character (3–5 ngrams) TF-IDF feature extraction.
-4. Train and benchmark candidate algorithms with **Calibrated LinearSVC**, **Logistic Regression**, and **Complement Naive Bayes**.
+1. Ingest `models/customer_support_tickets_train_split.csv` (5,156 verified training records) and `models/customer_support_tickets_test_split.csv` (1,290 strictly held-out records).
+2. Augment training with curated domain patterns and colloquial conversational variations (**5,676 train / 1,290 test samples**; 0 overlap / 100% disjoint).
+3. Apply dual-granularity word (1–2 ngrams, 12,000 max features) and character (3–5 ngrams, 20,000 max features) TF-IDF feature extraction.
+4. Train and benchmark candidate algorithms: **Calibrated LinearSVC**, **Logistic Regression**, **Complement Naive Bayes**, and a soft **Voting Ensemble**.
 5. Output detailed classification reports, precision, recall, and confusion matrices.
 6. Export production models to `models/enhanced_ticket_classifier.joblib` and `models/enhanced_customer_support_model_90plus.pkl`.
 7. Update `models/enhanced_model_metadata.json` with current performance figures.
@@ -219,20 +221,20 @@ Submits a ticket description for automated AI classification and storage.
 
 ---
 
-## 📊 Benchmark Results (Hardened Model)
+## 📊 Benchmark Results (Verified Disjoint Test Set)
 
-Evaluated on the full 10,005-sample dataset with a 20% stratified holdout partition:
+Evaluated on the strictly held-out test partition (`customer_support_tickets_test_split.csv`, 1,290 samples, 0 train-test leakage):
 
 | Category | Precision | Recall | F1-Score | Support |
 | :--- | :---: | :---: | :---: | :---: |
-| **Technical Support** | **0.996** | **0.998** | **0.997** | 1,074 |
-| **General Inquiry** | **0.992** | **0.975** | **0.984** | 367 |
-| **Complaint** | **0.963** | **0.975** | **0.969** | 243 |
-| **Billing** | **0.988** | **0.994** | **0.991** | 168 |
-| **Returns** | **0.987** | **0.987** | **0.987** | 149 |
-| **Overall Accuracy** | — | — | **99.00%** | **2,001 test samples** |
-| **Weighted F1-Score**| — | — | **0.990** | — |
-| **Macro F1-Score**   | — | — | **0.986** | — |
+| **Billing** | **1.000** | **0.996** | **0.998** | 250 |
+| **Technical Support** | **0.996** | **1.000** | **0.998** | 268 |
+| **General Inquiry** | **0.996** | **0.992** | **0.994** | 249 |
+| **Returns** | **0.989** | **0.996** | **0.992** | 264 |
+| **Complaint** | **0.992** | **0.988** | **0.990** | 259 |
+| **Overall Accuracy** | — | — | **99.46%** | **1,290 test samples** |
+| **Weighted F1-Score**| — | — | **0.995** | — |
+| **Macro F1-Score**   | — | — | **0.995** | — |
 
 ---
 

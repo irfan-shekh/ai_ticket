@@ -609,6 +609,7 @@ def get_comprehensive_dataset():
         'customer_support_tickets.csv'
     ]
     csv_path = next((p for p in csv_candidates if os.path.exists(p)), None)
+    valid_csv = None
 
     if csv_path:
         print(f"[DATA] Ingesting CSV dataset from: {csv_path}")
@@ -776,7 +777,10 @@ def get_comprehensive_dataset():
                     aug_records.append({"text": t.format(agent=ag, time=tm), "category": "Complaint"})
 
         df_aug = pd.DataFrame(aug_records)
-        df = pd.concat([valid_csv, df_curated, df_aug], ignore_index=True)
+        dfs_to_concat = [df_curated, df_aug]
+        if valid_csv is not None and len(valid_csv) > 0:
+            dfs_to_concat.insert(0, valid_csv)
+        df = pd.concat(dfs_to_concat, ignore_index=True)
         print(f"[DATA] Hardened dataset size: {len(df)} total records across 5 categories.")
         return df
 
@@ -846,29 +850,69 @@ def build_and_train_pipeline():
     print("[START] TICKETAI CLASSIFICATION PIPELINE: ENHANCED MODEL TRAINING")
     print("=" * 70)
     
-    # Load dataset
-    df = get_comprehensive_dataset()
-    print(f"\n[DATA] Total Training Samples: {len(df)}")
-    print(df['category'].value_counts())
+    output_dir = os.path.dirname(os.path.abspath(__file__))
+    train_split_path = os.path.join(output_dir, "customer_support_tickets_train_split.csv")
+    test_split_path = os.path.join(output_dir, "customer_support_tickets_test_split.csv")
     
     preprocessor = ProductionTextPreprocessor()
-    df['cleaned_text'] = df['text'].apply(preprocessor.preprocess)
     
-    X = df['cleaned_text']
-    y = df['category']
-    
-    # Train / Test split with stratification
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y
-    )
-    print(f"\n[TRAIN] Training Set: {len(X_train)} samples | [TEST] Test Set: {len(X_test)} samples")
+    if os.path.exists(train_split_path) and os.path.exists(test_split_path):
+        print(f"[DATA] Ingesting verified training partition: {train_split_path}")
+        df_train = pd.read_csv(train_split_path)
+        print(f"[DATA] Ingesting verified held-out test partition: {test_split_path}")
+        df_test = pd.read_csv(test_split_path)
+        
+        # Load curated domain dictionary for train enrichment (slang, colloquial variance, typos)
+        df_curated = get_comprehensive_dataset()
+        df_curated_formatted = pd.DataFrame({
+            'text_for_model': df_curated['text'],
+            'label_ticket_type': df_curated['category']
+        })
+        
+        # Enrich training partition ONLY
+        train_enriched = pd.concat([df_train, df_curated_formatted], ignore_index=True)
+        train_enriched = train_enriched.drop_duplicates(subset=['text_for_model'])
+        
+        # Strictly guarantee held-out test set has ZERO overlap with train set
+        train_texts = set(train_enriched['text_for_model'].astype(str).str.strip().str.lower())
+        df_test_clean = df_test.drop_duplicates(subset=['text_for_model']).copy()
+        df_test_clean = df_test_clean[~df_test_clean['text_for_model'].astype(str).str.strip().str.lower().isin(train_texts)]
+        
+        print(f"[VERIFIED] Train-Test Overlap: 0 samples (Strictly disjoint holdout)")
+        print(f"[TRAIN] Enriched Training Set: {len(train_enriched):,} samples across 5 categories")
+        print(f"[TEST] Held-out Test Set:     {len(df_test_clean):,} samples across 5 categories")
+        print("\n[TRAIN CLASS DISTRIBUTION]:\n", train_enriched['label_ticket_type'].value_counts())
+        print("\n[TEST CLASS DISTRIBUTION]:\n", df_test_clean['label_ticket_type'].value_counts())
+        
+        X_train = train_enriched['text_for_model'].apply(preprocessor.preprocess)
+        y_train = train_enriched['label_ticket_type']
+        
+        X_test = df_test_clean['text_for_model'].apply(preprocessor.preprocess)
+        y_test = df_test_clean['label_ticket_type']
+        
+        X = pd.concat([X_train, X_test], ignore_index=True)
+        y = pd.concat([y_train, y_test], ignore_index=True)
+    else:
+        # Fallback to curated dataset
+        df = get_comprehensive_dataset()
+        print(f"\n[DATA] Total Training Samples: {len(df)}")
+        print(df['category'].value_counts())
+        
+        df['cleaned_text'] = df['text'].apply(preprocessor.preprocess)
+        X = df['cleaned_text']
+        y = df['category']
+        
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.20, random_state=42, stratify=y
+        )
+        print(f"\n[TRAIN] Training Set: {len(X_train)} samples | [TEST] Test Set: {len(X_test)} samples")
     
     # Multi-feature extractor: word n-grams (1, 2) + character n-grams (3, 5)
     word_vectorizer = TfidfVectorizer(
         ngram_range=(1, 2),
         sublinear_tf=True,
         min_df=1,
-        max_features=6000
+        max_features=12000
     )
     
     char_vectorizer = TfidfVectorizer(
@@ -876,7 +920,7 @@ def build_and_train_pipeline():
         ngram_range=(3, 5),
         sublinear_tf=True,
         min_df=1,
-        max_features=6000
+        max_features=20000
     )
     
     feature_union = FeatureUnion([
@@ -1000,7 +1044,7 @@ def build_and_train_pipeline():
         'test_accuracy': float(best_acc),
         'weighted_f1': float(report['weighted avg']['f1-score']),
         'macro_f1': float(report['macro avg']['f1-score']),
-        'total_samples': len(df),
+        'total_samples': len(X),
         'training_timestamp': datetime.now().isoformat(),
         'feature_types': ['word_tfidf_1_2', 'char_wb_tfidf_3_5'],
         'model_architecture': str(best_name),

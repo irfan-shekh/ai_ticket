@@ -15,7 +15,7 @@
         }
         .app-sidebar {
             width: 270px;
-            background: rgba(11, 16, 28, 0.95);
+            background: var(--bg-sidebar);
             backdrop-filter: blur(20px);
             border-right: 1px solid var(--border-subtle);
             display: flex;
@@ -27,6 +27,7 @@
             left: 0;
             z-index: 100;
             padding: 24px 16px;
+            transition: all 0.25s ease;
         }
         .main-workspace {
             margin-left: 270px;
@@ -48,14 +49,13 @@
             border: 1px solid transparent;
         }
         .nav-pill-custom:hover {
-            color: #ffffff;
-            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            background: rgba(99, 102, 241, 0.08);
         }
         .nav-pill-custom.active {
-            color: #ffffff;
-            background: rgba(99, 102, 241, 0.15);
-            border-color: rgba(99, 102, 241, 0.4);
-            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+            color: #ffffff !important;
+            background: var(--primary) !important;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
         }
         .nav-pill-custom i {
             width: 20px;
@@ -75,7 +75,14 @@
         .ticket-card:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
-            border-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        .ticket-title {
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+        .ticket-text-preview {
+            color: var(--text-primary);
         }
         .ticket-tech { border-left-color: var(--tech-color) !important; }
         .ticket-billing { border-left-color: var(--billing-color) !important; }
@@ -98,7 +105,7 @@
         }
 
         .dropdown-menu-dark {
-            background-color: #111827;
+            background-color: var(--bg-elevated);
             border: 1px solid var(--border-card);
             border-radius: var(--radius-sm);
             box-shadow: var(--shadow-lg);
@@ -109,8 +116,47 @@
             font-size: 0.9rem;
         }
         .dropdown-item:hover {
-            background: rgba(99, 102, 241, 0.15);
-            color: #ffffff;
+            background: rgba(99, 102, 241, 0.12);
+            color: var(--primary);
+        }
+
+        /* Light Theme Overrides */
+        [data-theme="light"] .app-sidebar {
+            background: #ffffff !important;
+            border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+        }
+        [data-theme="light"] .nav-pill-custom {
+            color: #475569;
+        }
+        [data-theme="light"] .nav-pill-custom:hover {
+            color: var(--primary) !important;
+            background: rgba(99, 102, 241, 0.08) !important;
+        }
+        [data-theme="light"] .nav-pill-custom.active {
+            color: #ffffff !important;
+            background: var(--primary) !important;
+        }
+        [data-theme="light"] .ticket-card {
+            background: #ffffff !important;
+            border-color: rgba(0, 0, 0, 0.08) !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+        }
+        [data-theme="light"] .ticket-title {
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .ticket-text-preview {
+            color: #1e293b !important;
+        }
+        [data-theme="light"] .dropdown-menu-dark {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(0, 0, 0, 0.12) !important;
+        }
+        [data-theme="light"] .dropdown-item {
+            color: #334155 !important;
+        }
+        [data-theme="light"] .dropdown-item:hover {
+            background: rgba(99, 102, 241, 0.1) !important;
+            color: var(--primary) !important;
         }
 
         @media (max-width: 992px) {
@@ -140,7 +186,7 @@
                         <i class="fas fa-ticket-alt text-white"></i>
                     </div>
                     <div>
-                        <span class="fw-bold fs-5 text-white lh-1">Ticket<span class="gradient-text">AI</span></span>
+                        <span class="fw-bold fs-5 brand-title lh-1">Ticket<span class="gradient-text">AI</span></span>
                         <div class="text-muted" style="font-size: 0.7rem;">Customer Portal</div>
                     </div>
                 </div>
@@ -164,13 +210,13 @@
 
             <!-- User Widget & Logout -->
             <div>
-                <div class="p-3 rounded mb-3" style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle);">
+                <div class="p-3 rounded mb-3 sidebar-user-box" style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle);">
                     <div class="d-flex align-items-center gap-3">
                         <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #06b6d4); display: flex; align-items: center; justify-content: center; font-weight: 700; color: white;">
                             {{ username[0]|upper if username else 'U' }}
                         </div>
                         <div class="overflow-hidden">
-                            <div class="text-white small fw-bold text-truncate">{{ username }}</div>
+                            <div class="user-name small fw-bold text-truncate">{{ username }}</div>
                             <div class="text-muted" style="font-size: 0.72rem;">Customer Account</div>
                         </div>
                     </div>
@@ -186,7 +232,7 @@
             <!-- Topbar Header -->
             <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                 <div>
-                    <h3 class="fw-bold text-white mb-1">Hello, {{ username }} 👋</h3>
+                    <h3 class="fw-bold mb-1">Hello, {{ username }} 👋</h3>
                     <p class="text-secondary small mb-0">Track your support requests and get instant AI-assisted category classifications.</p>
                 </div>
                 <div class="d-flex align-items-center gap-3">
@@ -216,7 +262,7 @@
                                         <i class="fas fa-ticket-alt"></i>
                                     </div>
                                 </div>
-                                <h3 class="fw-bold text-white mb-0" id="total-tickets">0</h3>
+                                <h3 class="fw-bold mb-0" id="total-tickets">0</h3>
                             </div>
                         </div>
                         <div class="col-md-3 col-6">
@@ -257,7 +303,7 @@
                     <!-- Recent Tickets Section -->
                     <div class="glass-card p-4">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-white mb-0">Recent Support Inquiries</h5>
+                            <h5 class="fw-bold mb-0">Recent Support Inquiries</h5>
                             <button type="button" class="btn-secondary-dark btn-sm py-1 px-3" onclick="switchTab('#ticket-history')">
                                 View Full History <i class="fas fa-arrow-right ms-1"></i>
                             </button>
@@ -273,7 +319,7 @@
                     <div class="row g-4">
                         <div class="col-lg-8">
                             <div class="glass-card p-4">
-                                <h5 class="fw-bold text-white mb-1">Submit Support Request</h5>
+                                <h5 class="fw-bold mb-1">Submit Support Request</h5>
                                 <p class="text-secondary small mb-4">Describe the issue clearly. Our machine learning system will automatically assign the appropriate department.</p>
 
                                 <form id="ticket-form">
@@ -301,7 +347,7 @@
                         <!-- Categories Sidebar Guide -->
                         <div class="col-lg-4">
                             <div class="glass-card p-4">
-                                <h6 class="fw-bold text-white mb-3 text-uppercase small tracking-wider">
+                                <h6 class="fw-bold mb-3 text-uppercase small tracking-wider">
                                     <i class="fas fa-layer-group text-primary me-2"></i>Supported Departments
                                 </h6>
                                 
@@ -337,7 +383,7 @@
                                     <div style="width: 28px; height: 28px; border-radius: 8px; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center;">
                                         <i class="fas fa-sparkles text-white small"></i>
                                     </div>
-                                    <h5 class="fw-bold text-white mb-0">AI Classification Results</h5>
+                                    <h5 class="fw-bold mb-0">AI Classification Results</h5>
                                 </div>
 
                                 <div class="row g-4 align-items-center">
@@ -425,14 +471,14 @@
                                     <div class="row align-items-start g-3">
                                         <div class="col-lg-8">
                                             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                                                <span class="fw-bold text-white">Ticket #{{ ticket.id }}</span>
+                                                <span class="fw-bold ticket-title">Ticket #{{ ticket.id }}</span>
                                                 {% if ticket.resolution_notes %}
                                                     <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem; border: 1px solid rgba(16, 185, 129, 0.3);">
                                                         <i class="fas fa-check-circle me-1"></i> Resolved
                                                     </span>
                                                 {% endif %}
                                             </div>
-                                            <p class="ticket-text-preview text-light mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
+                                            <p class="ticket-text-preview mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
                                             <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: {{ ticket.created_at }}</div>
                                             
                                             {% if ticket.resolution_notes %}
@@ -440,7 +486,7 @@
                                                 <div class="small fw-bold text-success mb-1">
                                                     <i class="fas fa-check me-1"></i> Support Resolution:
                                                 </div>
-                                                <p class="mb-1 text-light small">{{ ticket.resolution_notes }}</p>
+                                                <p class="mb-1 text-secondary small">{{ ticket.resolution_notes }}</p>
                                                 <div class="text-muted" style="font-size: 0.72rem;">Resolved on: {{ ticket.resolved_at }}</div>
                                             </div>
                                             {% endif %}
@@ -479,7 +525,7 @@
                         {% else %}
                             <div class="glass-card p-5 text-center">
                                 <i class="fas fa-ticket-alt fa-3x text-muted mb-3"></i>
-                                <h5 class="text-white">No Tickets Found</h5>
+                                <h5>No Tickets Found</h5>
                                 <p class="text-secondary small mb-3">You haven't submitted any support requests yet.</p>
                                 <button type="button" class="btn-primary-glow btn-sm" onclick="switchTab('#create-ticket')">Create Your First Ticket</button>
                             </div>
@@ -683,7 +729,7 @@
                                         <div class="small fw-bold text-success mb-1">
                                             <i class="fas fa-check me-1"></i> Resolution:
                                         </div>
-                                        <p class="mb-1 text-light small">${ticket.resolution_notes}</p>
+                                        <p class="mb-1 text-secondary small">${ticket.resolution_notes}</p>
                                         <small class="text-muted">Resolved on: ${ticket.resolved_at || 'N/A'}</small>
                                     </div>
                                 `;
@@ -693,10 +739,10 @@
                                 <div class="row align-items-start g-3">
                                     <div class="col-lg-8">
                                         <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                                            <span class="fw-bold text-white">Ticket #${ticket.id}</span>
+                                            <span class="fw-bold ticket-title">Ticket #${ticket.id}</span>
                                             ${ticket.resolution_notes ? '<span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem;"><i class="fas fa-check-circle me-1"></i> Resolved</span>' : ''}
                                         </div>
-                                        <p class="ticket-text-preview text-light mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${ticket.ticket_text}</p>
+                                        <p class="ticket-text-preview mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${ticket.ticket_text}</p>
                                         <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: ${ticket.created_at}</div>
                                         ${resolutionHtml}
                                     </div>

@@ -368,3 +368,142 @@ p {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--primary);
 }
+
+/* ==========================================================================
+   Light Mode Explicit Overrides (Fix for invisible white text in Light Mode)
+   ========================================================================== */
+
+/* Automatically flip Bootstrap's text-white and text-light to dark text in light theme */
+[data-theme="light"] .text-white:not(.btn-primary-glow):not(.badge-category):not(.avatar-initial):not(.stat-icon i):not(.btn-primary):not(.badge):not(.gradient-text):not(.bg-primary):not(.bg-danger):not(.bg-success) {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .text-light {
+    color: var(--text-secondary) !important;
+}
+
+/* Explicitly style headings in light mode */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] h5,
+[data-theme="light"] h6 {
+    color: var(--text-primary) !important;
+}
+
+/* Dashboard ticket card text in light mode */
+[data-theme="light"] .ticket-card,
+[data-theme="light"] .ticket-item-card {
+    background: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .ticket-card .ticket-text-preview,
+[data-theme="light"] .ticket-item-card p,
+[data-theme="light"] .ticket-text-preview {
+    color: #1e293b !important;
+}
+
+[data-theme="light"] .ticket-card .fw-bold,
+[data-theme="light"] .ticket-item-card .fw-bold,
+[data-theme="light"] .ticket-title {
+    color: #0f172a !important;
+}
+
+/* Dashboard sidebar in light mode */
+[data-theme="light"] .app-sidebar {
+    background: #ffffff !important;
+    border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .nav-pill-custom {
+    color: #475569 !important;
+}
+
+[data-theme="light"] .nav-pill-custom:hover {
+    color: var(--primary) !important;
+    background: rgba(99, 102, 241, 0.08) !important;
+}
+
+[data-theme="light"] .nav-pill-custom.active {
+    color: #ffffff !important;
+    background: var(--primary) !important;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35) !important;
+}
+
+[data-theme="light"] .sidebar-user-box {
+    background: #f8fafc !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .sidebar-user-box .user-name {
+    color: var(--text-primary) !important;
+}
+
+/* Stat boxes in light mode */
+[data-theme="light"] .stat-box,
+[data-theme="light"] .admin-stat-card {
+    background: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .stat-box h3,
+[data-theme="light"] .admin-stat-card h2 {
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .stat-box h3.text-warning,
+[data-theme="light"] .admin-stat-card h2.text-warning {
+    color: #d97706 !important;
+}
+
+[data-theme="light"] .stat-box h3.text-success,
+[data-theme="light"] .admin-stat-card h2.text-success {
+    color: #059669 !important;
+}
+
+/* Dropdown menus in light mode */
+[data-theme="light"] .dropdown-menu,
+[data-theme="light"] .dropdown-menu-dark {
+    background-color: #ffffff !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+}
+
+[data-theme="light"] .dropdown-item {
+    color: #334155 !important;
+}
+
+[data-theme="light"] .dropdown-item:hover,
+[data-theme="light"] .dropdown-item:focus {
+    background-color: rgba(99, 102, 241, 0.1) !important;
+    color: var(--primary) !important;
+}
+
+/* Modals in light mode */
+[data-theme="light"] .modal-content,
+[data-theme="light"] .modal-content-dark {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-theme="light"] .modal-header,
+[data-theme="light"] .modal-footer {
+    border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Topbars & Navbars */
+[data-theme="light"] nav.navbar {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .navbar-brand .text-white {
+    color: #0f172a !important;
+}
+
