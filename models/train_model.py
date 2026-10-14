@@ -851,8 +851,8 @@ def build_and_train_pipeline():
     print("=" * 70)
     
     output_dir = os.path.dirname(os.path.abspath(__file__))
-    train_split_path = os.path.join(output_dir, "customer_support_tickets_train_split.csv")
-    test_split_path = os.path.join(output_dir, "customer_support_tickets_test_split.csv")
+    train_split_path = os.path.join(output_dir, "train.csv")
+    test_split_path = os.path.join(output_dir, "test.csv")
     
     preprocessor = ProductionTextPreprocessor()
     

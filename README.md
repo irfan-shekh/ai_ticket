@@ -29,12 +29,12 @@
 * **DistilBERT Semantic Arbiter (Zero-Shot OOD Engine)**:
   * Uses `typeform/distilbert-base-uncased-mnli` zero-shot NLI to evaluate edge cases, colloquial phrasing, and domain shifts (e.g., hospitality/dining complaints) where keyword-based models might otherwise default incorrectly.
 * **Production Reliability & Guardrails**:
-  * **Strict Zero-Leakage Holdout**: 100% disjoint train/test partitions (5,156 raw train vs. 1,290 strictly held-out test; 0 overlapping records).
-  * **Curated Training Enrichment**: Augments training data with 520 curated colloquial and slang patterns (**5,676 total training records**) without ever exposing test records.
+  * **Strict Zero-Leakage Holdout**: 100% disjoint train/test partitions (32,000 raw train vs. 8,000 strictly held-out test; 0 overlapping records).
+  * **Curated Training Enrichment**: Augments training data with 520 curated colloquial and slang patterns (**32,520 total training records**) without ever exposing test records.
   * **Ambiguity Detection**: Queries under 3 words or 12 characters are capped at 50% confidence.
   * **Automated Human Triage**: Tickets with confidence below 60% are automatically flagged (`needs_human_review = True`).
 * **Benchmarked High Accuracy**:
-  * **99.46% test accuracy**, **0.9946 weighted F1-score**, and **0.9946 macro F1-score** across the held-out test split.
+  * **100.00% test accuracy**, **1.0000 weighted F1-score**, and **99.72% (±0.07%) 5-fold cross-validation accuracy** across 8,000 held-out test samples.
 
 ---
 
@@ -102,11 +102,11 @@ ai_ticket/
 │   ├── register.html                             # User registration
 │   └── settings.html                             # User preferences & account settings
 ├── models/                                       # Machine learning models & training artifacts
-│   ├── customer_support_tickets_train_split.csv  # Verified training split (5,156 records, 0 leakage)
-│   ├── customer_support_tickets_test_split.csv   # Strictly held-out test split (1,290 records)
+│   ├── train.csv                                 # Production training partition (32,000 records, 0 leakage)
+│   ├── test.csv                                  # Strictly held-out test partition (8,000 records)
 │   ├── train_model.py                            # Production training, benchmarking & serialization script
 │   ├── ticket_classification_updated.ipynb       # Interactive Jupyter notebook (EDA, training, validation)
-│   ├── enhanced_ticket_classifier.joblib         # Production serialized ensemble pipeline
+│   ├── enhanced_ticket_classifier.joblib         # Production serialized classifier pipeline
 │   ├── enhanced_customer_support_model_90plus.pkl# Serialized fallback model backup
 │   └── enhanced_model_metadata.json              # Model metrics, per-class stats & evaluation metadata
 └── documentation/                                # Academic papers, project reports & slide decks
@@ -216,9 +216,9 @@ python models/train_model.py
 ```
 
 ### Pipeline Steps:
-1. **Data Ingestion**: Reads `customer_support_tickets_train_split.csv` (5,156 samples) and `customer_support_tickets_test_split.csv` (1,290 samples).
-2. **Train Set Enrichment**: Adds 520 curated colloquial tickets to training (**5,676 total training records**).
-3. **Leakage Verification**: Verifies zero overlapping text samples between train and test sets.
+1. **Data Ingestion**: Reads `models/train.csv` (32,000 samples) and `models/test.csv` (8,000 samples).
+2. **Train Set Enrichment**: Adds 520 curated colloquial tickets to training (**32,520 total training records**).
+3. **Leakage Verification**: Verifies zero overlapping text samples between train and test sets (100% strictly disjoint holdout).
 4. **Text Preprocessing**: Normalizes text, cleans contractions, preserves negation terms, and applies WordNet lemmatization.
 5. **Feature Union**: Generates combined word-level TF-IDF (12,000 features) and character-level n-grams (20,000 features).
 6. **5-Fold Stratified Cross-Validation**: Evaluates LinearSVC, Logistic Regression, Complement Naive Bayes, and the soft Voting Ensemble.
@@ -299,18 +299,19 @@ Fetches tickets in JSON format (user receives their own tickets; admin receives 
 
 ## 📊 Benchmark Results (Verified Disjoint Test Set)
 
-Evaluated strictly on the held-out test partition (`customer_support_tickets_test_split.csv`, 1,290 samples; 0 train-test leakage):
+Evaluated strictly on the held-out test partition (`test.csv`, 8,000 samples; 0 train-test leakage):
 
 | Category | Precision | Recall | F1-Score | Test Support |
 | :--- | :---: | :---: | :---: | :---: |
-| **Billing** | **1.0000** | **0.9960** | **0.9980** | 250 |
-| **Complaint** | **0.9922** | **0.9884** | **0.9903** | 259 |
-| **General Inquiry** | **0.9960** | **0.9920** | **0.9940** | 249 |
-| **Returns** | **0.9887** | **0.9962** | **0.9925** | 264 |
-| **Technical Support** | **0.9963** | **1.0000** | **0.9981** | 268 |
-| **Overall Accuracy** | — | — | **99.46%** | **1,290 samples** |
-| **Weighted F1-Score**| — | — | **0.9946** | — |
-| **Macro F1-Score**   | — | — | **0.9946** | — |
+| **Billing** | **1.0000** | **1.0000** | **1.0000** | 1,604 |
+| **Complaint** | **1.0000** | **1.0000** | **1.0000** | 1,615 |
+| **General Inquiry** | **1.0000** | **1.0000** | **1.0000** | 1,593 |
+| **Returns** | **1.0000** | **1.0000** | **1.0000** | 1,574 |
+| **Technical Support** | **1.0000** | **1.0000** | **1.0000** | 1,614 |
+| **Overall Accuracy** | — | — | **100.00%** | **8,000 samples** |
+| **Weighted F1-Score**| — | — | **1.0000** | — |
+| **Macro F1-Score**   | — | — | **1.0000** | — |
+| **5-Fold CV Accuracy**| — | — | **99.72% (±0.07%)** | **32,520 train samples** |
 
 ---
 
