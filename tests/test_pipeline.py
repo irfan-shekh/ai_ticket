@@ -85,6 +85,15 @@ class TestTicketClassificationPipeline(unittest.TestCase):
                 f"Ticket '{text}' predicted as {res['predicted_category']}, expected one of {expected_cats}"
             )
 
+    def test_non_technical_complaint_grounding(self):
+        """Food, service, and dining complaints must route to Complaint, never Technical Support."""
+        samples = [
+            "the food is not good",
+            "the waiter was extremely rude and the meal was cold"
+        ]
+        for s in samples:
+            res = classify_ticket(s, return_structured=True)
+            self.assertEqual(res['predicted_category'], 'Complaint', f"'{s}' should be Complaint")
 
     def test_out_of_scope_rejection(self):
         """Unrelated topics must be flagged as out-of-scope and routed for human review."""

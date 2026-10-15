@@ -61,10 +61,37 @@ SUPPORT_DOMAIN_KEYWORDS = {
     'frustrated', 'frustrating', 'upset', 'angry', 'manager', 'supervisor', 'escalate', 'escalation',
     'lie', 'lied', 'promise', 'broken promise', 'poor service', 'bad service', 'ignored', 'no response',
     'waiting for', 'scam', 'ripoff', 'department', 'departments', 'resolution', 'responsibility',
-    'advertising', 'advertised', 'sales'
+    'advertising', 'advertised', 'sales', 'food', 'meal', 'meals', 'dish', 'dishes', 'drink',
+    'drinks', 'restaurant', 'waiter', 'waitress', 'dining', 'bad', 'poor', 'not good', 'cold',
+    'dirty', 'slow', 'waste', 'quality', 'stale', 'smell', 'disgusting'
 }
 
-# Explicit Out-of-Scope Patterns (Trivia, recipes, generic chit-chat, coding questions, unrelated hospitality)
+# Technical keywords for domain grounding
+TECHNICAL_KEYWORDS = {
+    'login', 'log in', 'logout', 'sign in', 'signup', 'password', 'passcode', 'credential',
+    'credentials', '2fa', 'mfa', 'two factor', 'verification code', 'otp', 'reset password',
+    'locked out', 'unlock', 'app', 'application', 'mobile app', 'desktop', 'software',
+    'hardware', 'device', 'devices', 'screen', 'display', 'monitor', 'keyboard', 'mouse',
+    'printer', 'camera', 'audio', 'speaker', 'battery', 'laptop', 'computer', 'pc', 'windows',
+    'mac', 'macos', 'ios', 'android', 'linux', 'wifi', 'wi-fi', 'network', 'connection',
+    'connect', 'connected', 'bluetooth', 'disconnect', 'server', 'servers', 'database',
+    '500', '404', '401', '403', '502', '504', 'error', 'errors', 'bug', 'bugs', 'glitch',
+    'crash', 'crashes', 'crashing', 'crashed', 'freeze', 'freezes', 'freezing', 'timeout',
+    'timed out', 'install', 'installation', 'update', 'updates', 'upgrade', 'driver', 'drivers',
+    'firmware', 'sync', 'syncing', 'download', 'upload', 'load', 'loading', 'slow', 'performance',
+    'memory leak', 'token', 'ssl', 'browser', 'port', 'auth', 'code'
+}
+
+# Indicators of dissatisfaction / service complaints
+COMPLAINT_INDICATORS = {
+    'bad', 'terrible', 'horrible', 'poor', 'awful', 'worst', 'rude', 'cold', 'dirty', 'slow',
+    'disappointing', 'disappointed', 'unacceptable', 'not good', 'not happy', 'waste', 'cheat',
+    'cheated', 'scam', 'ripoff', 'lie', 'lied', 'hate', 'trash', 'garbage', 'broken promise',
+    'ignored', 'disrespect', 'disrespectful', 'food', 'meal', 'waiter', 'waitress', 'restaurant',
+    'dining', 'dish', 'drink', 'taste', 'stale', 'smell', 'disgusting', 'attitude', 'behavior'
+}
+
+# Explicit Out-of-Scope Patterns (Trivia, recipes, generic chit-chat, coding questions)
 EXPLICIT_OUT_OF_SCOPE_PATTERNS = [
     r'\b(capital (city )?of|president of|prime minister of|who wrote|who invented|who discovered|chemical formula|boiling point|how far is the moon|how do airplanes)\b',
     r'\b(recipe for|ingredients for|how to bake|how to cook|baking soda|chocolate chip|what should i eat for lunch|eat for lunch)\b',
@@ -72,10 +99,11 @@ EXPLICIT_OUT_OF_SCOPE_PATTERNS = [
     r'\b(who won the|score of the game|world cup|super bowl|nba champions|rules of playing chess|playing chess)\b',
     r'\b(write a python|python function|binary search tree|sort an array|quicksort in java|java function|leetcode)\b',
     r'\b(tell me a joke|tell me a story|who created you|what is your favorite color|are you an ai|good morning have a wonderful)\b',
-    r'\b(hotel room|airline flight|commercial airline|boarding pass|restaurant waiter|food was completely cold|dining table|public parking garage)\b',
+    r'\b(hotel room|airline flight|commercial airline|boarding pass|public parking garage)\b',
     r'\b(mountain bicycle|flat tire on my bicycle|tourist attractions in rome|movie to watch on netflix|morning run in the park|cat fell asleep|interstate highway)\b',
     r'\b(luxury watches|won a cash lottery|crypto investment opportunity)\b'
 ]
+
 
 def check_gibberish(text: str) -> bool:
     """Detects random key-mashing, non-alphabetic noise, or pure repeating characters."""
@@ -185,6 +213,22 @@ class TriageDecisionLayer:
             {"category": classes[idx], "confidence": round(float(class_probabilities[idx]) * 100.0, 2)}
             for idx in sorted_indices[:3]
         ]
+
+        # Guardrail: Ground Technical Support in technical keywords.
+        # If model predicted 'Technical Support' on non-technical complaints (e.g. 'the food is not good', 'the waiter was rude'),
+        # re-route to 'Complaint'.
+        text_lower = text.lower()
+        has_tech_kw = bool(set(re.findall(r'\b[a-zA-Z0-9_-]+\b', text_lower)) & TECHNICAL_KEYWORDS)
+        has_complaint_signal = any(term in text_lower for term in COMPLAINT_INDICATORS)
+        
+        if predicted_category == "Technical Support" and not has_tech_kw and has_complaint_signal:
+            predicted_category = "Complaint"
+            confidence_pct = max(confidence_pct, 65.0)
+            top_predictions = [
+                {"category": "Complaint", "confidence": confidence_pct},
+                {"category": "General Inquiry", "confidence": 20.0},
+                {"category": "Technical Support", "confidence": 15.0}
+            ]
 
         # 4. Domain & Out-of-Scope Evidence
         domain_signals = count_domain_signals(text)
