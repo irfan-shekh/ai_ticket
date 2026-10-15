@@ -32,8 +32,6 @@
   * Domain lexicon validator matching customer support vocabulary across all 5 operational domains.
   * Explicit noise and out-of-scope pattern rejection (recipes, trivia, sports, coding questions, chit-chat, unrelated hospitality, and gibberish).
   * Short-ticket preservation: short but legitimate requests (e.g., *"Where is my refund?"*, *"Cancel subscription"*) are correctly accepted.
-* **Optional DistilBERT Fallback**:
-  * Pretrained zero-shot NLI model (`typeform/distilbert-base-uncased-mnli`) available as an experimental fallback via `ENABLE_DISTILBERT_FALLBACK=true`. (Disabled by default for production efficiency).
 
 ---
 
@@ -219,7 +217,6 @@ python download.py
 ```bash
 cp .env.example .env
 ```
-*(Optionally set `ENABLE_DISTILBERT_FALLBACK=true` if you wish to run experimental zero-shot comparisons).*
 
 ---
 

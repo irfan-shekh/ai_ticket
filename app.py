@@ -74,26 +74,9 @@ lemmatizer = WordNetLemmatizer()
 from models.triage_decision_layer import get_default_triage_layer, TriageDecisionLayer
 triage_layer = get_default_triage_layer(min_confidence=60.0, min_margin=0.15)
 
-# Optional DistilBERT Transformer Classifier (Disabled by default for fast, deterministic production inference)
-# Set ENABLE_DISTILBERT_FALLBACK=true in .env or environment to enable experimental fallback
-ENABLE_DISTILBERT_FALLBACK = os.getenv('ENABLE_DISTILBERT_FALLBACK', 'false').lower() == 'true'
-distilbert_classifier = None
-if ENABLE_DISTILBERT_FALLBACK:
-    try:
-        import importlib.util
-        if importlib.util.find_spec('torch') is not None and importlib.util.find_spec('transformers') is not None:
-            from transformers import pipeline
-            distilbert_classifier = pipeline(
-                "zero-shot-classification", 
-                model="typeform/distilbert-base-uncased-mnli",
-                device=-1
-            )
-            print("DistilBERT transformer fallback enabled and initialized.")
-    except Exception as e:
-        print(f"Notice: DistilBERT initialization notice: {e}")
-        distilbert_classifier = None
-else:
-    print("Primary Pipeline: Fast TF-IDF + Calibrated LinearSVC with Triage Decision Layer (DistilBERT fallback disabled)")
+# Primary Model Preprocessing & Triage Pipeline
+# Uses Calibrated LinearSVC + TriageDecisionLayer (14.41 ms latency, 0 external neural network dependencies)
+
 
 
 def preprocess_text(text):
@@ -486,34 +469,17 @@ def rows_to_dict_list(rows):
 def classify_ticket(text, return_top_k=False, return_structured=False):
     """
     Classify ticket using production trained LinearSVC pipeline and Triage Decision Layer.
-    Guarantees out-of-scope detection, ambiguity triage, input validation, and optional experimental DistilBERT fallback.
+    Guarantees out-of-scope detection, ambiguity triage, input validation, and category guardrails.
     """
     try:
         raw_text = str(text or "")[:5000].strip()
         
-        # 1. Use Triage Decision Layer with production model
+        # Use Triage Decision Layer with production model
         decision = triage_layer.decide(
             raw_text,
             primary_model=production_model,
             preprocessor_fn=preprocess_text
         )
-        
-        # 2. Optional Experimental DistilBERT Fallback (only triggered when explicitly enabled)
-        if ENABLE_DISTILBERT_FALLBACK and distilbert_classifier is not None:
-            if decision['is_out_of_scope'] or decision['confidence'] < 50.0:
-                try:
-                    classes = list(getattr(production_model, 'classes_', [
-                        "Technical Support", "Billing", "Returns", "General Inquiry", "Complaint"
-                    ]))
-                    bert_res = distilbert_classifier(raw_text, classes)
-                    bert_top_cat = bert_res['labels'][0]
-                    bert_conf = round(float(bert_res['scores'][0]) * 100, 2)
-                    if bert_conf >= 55.0:
-                        decision['predicted_category'] = bert_top_cat
-                        decision['confidence'] = bert_conf
-                        decision['review_reason'] = "Reclassified via Experimental DistilBERT Fallback"
-                except Exception as bert_err:
-                    print(f"DistilBERT fallback warning: {bert_err}")
 
         if return_structured:
             return decision
