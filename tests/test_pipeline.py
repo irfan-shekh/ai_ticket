@@ -60,6 +60,15 @@ class TestTicketClassificationPipeline(unittest.TestCase):
         self.assertFalse(res['is_out_of_scope'])
         self.assertGreaterEqual(res['confidence'], 50.0)
 
+    def test_business_hours_inquiry(self):
+        """Ensure concise informational questions like business hours route to General Inquiry."""
+        text = "What are your business hours?"
+        res = classify_ticket(text, return_structured=True)
+        self.assertEqual(res['predicted_category'], 'General Inquiry')
+        self.assertFalse(res['is_out_of_scope'])
+        self.assertFalse(res['needs_human_review'])
+        self.assertGreaterEqual(res['confidence'], 70.0)
+
     def test_valid_complaint_ticket(self):
         text = "Your customer service representative was extremely rude and unhelpful on the phone."
         res = classify_ticket(text, return_structured=True)

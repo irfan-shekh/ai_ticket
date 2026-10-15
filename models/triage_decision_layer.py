@@ -91,6 +91,15 @@ COMPLAINT_INDICATORS = {
     'dining', 'dish', 'drink', 'taste', 'stale', 'smell', 'disgusting', 'attitude', 'behavior'
 }
 
+# Indicators of informational requests / general inquiries
+GENERAL_INQUIRY_INDICATORS = {
+    'business hours', 'operating hours', 'opening hours', 'hours', 'store location', 'store hours',
+    'where are you located', 'what is your address', 'address', 'phone number', 'contact information',
+    'how to contact', 'how can i contact', 'how do i contact', 'do you ship to', 'international shipping',
+    'what are your hours', 'when do you open', 'when do you close', 'return policy', 'warranty policy',
+    'specifications', 'specification', 'specs', 'compatible with', 'compatibility'
+}
+
 # Explicit Out-of-Scope Patterns (Trivia, recipes, generic chit-chat, coding questions)
 EXPLICIT_OUT_OF_SCOPE_PATTERNS = [
     r'\b(capital (city )?of|president of|prime minister of|who wrote|who invented|who discovered|chemical formula|boiling point|how far is the moon|how do airplanes)\b',
@@ -228,6 +237,19 @@ class TriageDecisionLayer:
                 {"category": "Complaint", "confidence": confidence_pct},
                 {"category": "General Inquiry", "confidence": 20.0},
                 {"category": "Technical Support", "confidence": 15.0}
+            ]
+
+        # Guardrail: Ground Complaint predictions in actual dissatisfaction indicators.
+        # If model predicted 'Complaint' on informational questions (e.g. 'What are your business hours?'),
+        # but text contains clear General Inquiry terms and 0 complaint/dissatisfaction signals, re-route to 'General Inquiry'.
+        has_inquiry_signal = any(term in text_lower for term in GENERAL_INQUIRY_INDICATORS)
+        if predicted_category == "Complaint" and not has_complaint_signal and has_inquiry_signal:
+            predicted_category = "General Inquiry"
+            confidence_pct = max(confidence_pct, 85.0)
+            top_predictions = [
+                {"category": "General Inquiry", "confidence": confidence_pct},
+                {"category": "Complaint", "confidence": 10.0},
+                {"category": "Technical Support", "confidence": 5.0}
             ]
 
         # 4. Domain & Out-of-Scope Evidence
