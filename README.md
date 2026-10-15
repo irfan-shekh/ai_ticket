@@ -143,8 +143,9 @@ We evaluated three architectural configurations across two distinct benchmarks:
 > 
 > * **Zero Accuracy Gain**: DistilBERT zero-shot NLI did not correct any classification errors on in-scope valid customer tickets (accuracy remained 96.0% on Benchmark 1 and 92.5% on Benchmark 2).
 > * **Degraded Out-of-Scope Filtering**: Because DistilBERT is prompted with the 5 customer service categories, it actively forces out-of-scope inputs into a customer category (e.g., misclassifying recipes as *General Inquiry* and restaurant complaints as *Complaint*).
-> * **Severe Latency Penalty**: Mean latency increases by 14x–20x (from ~3.6ms to 70.6ms on CPU, with p95 exceeding 155ms).
-> * **Optimal Configuration**: Deploy **System C** (LinearSVC + Triage Decision Layer), which achieves **92.5%–96.0% ticket accuracy**, **sub-15ms response latency**, and superior out-of-scope rejection over baseline models.
+> * **Severe Latency Penalty**: Mean inference latency increases by **19.2×** (from 3.67 ms to 70.64 ms on CPU, with p95 reaching 155.59 ms across 400 standardized pre-warmed runs).
+> * **Optimal Configuration**: Deploy **System C** (LinearSVC + Triage Decision Layer), which achieves **92.5%–96.0% ticket accuracy**, **14.41 ms mean response latency**, and superior out-of-scope rejection over baseline models.
+
 
 ---
 
@@ -335,30 +336,31 @@ Use these four turnkey test cases to demonstrate the system's end-to-end capabil
   * **Category**: `Returns`
   * **Confidence**: `99.9%` (High)
   * **Triage Status**: `is_out_of_scope = False`, `needs_human_review = False`
-  * **Action**: Successfully accepted; proves the system does **not** falsely reject concise customer tickets.
+  * **Action**: Successfully accepted; demonstrates that concise, valid customer requests are supported without being arbitrarily rejected for brevity.
 
 ---
 
-## 💼 Resume & Portfolio Bullet Points
+## 💼 Recommended Resume Version
 
-Copy and adapt these bullet points for your resume and LinkedIn:
-
-* **Architected Production Customer Ticket Classification System**: Designed a full-stack Flask application classifying incoming support inquiries across 5 operational categories using a dual-granularity word (1–2 n-grams) and character (3–5 `char_wb` n-grams) `FeatureUnion` with `CalibratedClassifierCV(LinearSVC)`.
-* **Engineered Multi-Signal Triage & OOS Decision Layer**: Developed a transparent triage layer combining posterior probability margins ($\Delta \ge 0.15$), domain lexicon validation, and heuristic pattern matching, boosting out-of-scope rejection recall from **32.5% to 67.5%** on unconstrained unseen text without rejecting concise valid tickets (*0% false rejection rate*).
-* **Audited Dataset Integrity & Prevented Leakage**: Conducted an automated audit on 40,000 synthetic ticket records, confirming 0% exact cross-split leakage while identifying and quantifying 7.0% template-family skeleton reuse, establishing realistic expectations for generalization on real-world inputs.
-* **Benchmarked & Optimized Inference Latency**: Profiled inference across 400 pre-warmed runs, establishing a **14.4 ms mean latency (16.8 ms p95)**; deprecated a zero-shot Transformer fallback (DistilBERT) after proving it added a 14x latency penalty (~70.6 ms) and degraded OOS precision without improving classification accuracy.
-* **Delivered Enterprise-Grade Full-Stack Platform**: Built responsive client and agent dashboards with theme toggles, SQLite transactional history, role-based access control, SMTP email notifications, and an automated 15-test unit suite with 100% pass rate.
+```text
+TicketAI — AI-Powered Customer Support Classification & Triage
+- ML Classification: Built a five-category ticket classification pipeline using word- and character-level TF-IDF features with Calibrated LinearSVC, achieving 92.5% accuracy on an independent 40-ticket human-written benchmark.
+- Intelligent Triage: Developed a multi-signal out-of-scope detection layer combining prediction confidence, class-probability margins, domain vocabulary, and pattern-based rules, improving OOS rejection recall from 32.5% to 67.5% on a 40-message unseen OOS benchmark.
+- Evaluation & Optimization: Audited 40,000 synthetic records, identified 7% template-skeleton overlap across train/test splits, benchmarked DistilBERT against the primary model (showing a 19.2× latency increase with no accuracy gain), and measured 14.41 ms mean inference latency for the triage system.
+```
 
 ---
 
 ## ⚠️ Known Limitations & Honest QA Disclosures
 
-1. **Out-of-Scope Generalization Boundary**: The triage decision layer achieved 100% rejection recall on an initial 30-sample benchmark, but stress-testing against 40 unconstrained unseen messages revealed a **67.5% OOS rejection recall** (13/40 messages admitted). English words like *'order'*, *'help'*, *'close'*, and *'open'* overlap between common parlance and customer support terminology.
-2. **Synthetic Holdout vs. Real-World Accuracy**: The primary model achieved 100% accuracy on synthetic holdouts due to parametric template reuse, but scores **92.5% – 96.0% accuracy** on diverse human-written customer messages.
-3. **Single-Label Scope**: Multi-intent inquiries are displayed with top-3 probability margins for human agent visibility, but the underlying model operates as a single-label multi-class classifier.
+1. **Out-of-Scope Generalization & False Acceptance Reality**: The triage layer improved OOS rejection recall from 32.5% to **67.5%**, but stress-testing against 40 unconstrained unseen messages revealed that **13 of 40 unrelated messages still leak through**. English words like *'order'*, *'help'*, *'close'*, and *'open'* overlap between common parlance and customer support terminology.
+2. **Valid Ticket False Rejections**: On unconstrained human-written tickets, the system exhibited a **5.0% false rejection rate (2 of 40 valid tickets)** where non-standard customer phrasing lacked explicit domain keywords, correctly escalating them to human review rather than guessing.
+3. **Synthetic Holdout vs. Real-World Accuracy**: The primary model achieved 100% accuracy on synthetic holdouts due to parametric template reuse, but scores **92.5% – 96.0% accuracy** on diverse human-written customer messages.
+4. **Single-Label Scope**: Multi-intent inquiries are displayed with top-3 probability margins for human agent visibility, but the underlying model operates as a single-label multi-class classifier.
 
 ---
 
 ## 📄 License
 This project is licensed under the MIT License.
+
 
