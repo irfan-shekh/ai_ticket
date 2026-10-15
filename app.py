@@ -70,21 +70,30 @@ except Exception:
 
 lemmatizer = WordNetLemmatizer()
 
-# DistilBERT Transformer Classifier for Out-of-Dataset & Semantic Classification
+# Triage and Out-of-Scope Decision Layer
+from models.triage_decision_layer import get_default_triage_layer, TriageDecisionLayer
+triage_layer = get_default_triage_layer(min_confidence=60.0, min_margin=0.15)
+
+# Optional DistilBERT Transformer Classifier (Disabled by default for fast, deterministic production inference)
+# Set ENABLE_DISTILBERT_FALLBACK=true in .env or environment to enable experimental fallback
+ENABLE_DISTILBERT_FALLBACK = os.getenv('ENABLE_DISTILBERT_FALLBACK', 'false').lower() == 'true'
 distilbert_classifier = None
-try:
-    import importlib.util
-    if importlib.util.find_spec('torch') is not None and importlib.util.find_spec('transformers') is not None:
-        from transformers import pipeline
-        distilbert_classifier = pipeline(
-            "zero-shot-classification", 
-            model="typeform/distilbert-base-uncased-mnli",
-            device=-1
-        )
-        print("DistilBERT transformer classifier initialized successfully for out-of-dataset queries.")
-except Exception as e:
-    print(f"Notice: DistilBERT transformer initialization: {e}")
-    distilbert_classifier = None
+if ENABLE_DISTILBERT_FALLBACK:
+    try:
+        import importlib.util
+        if importlib.util.find_spec('torch') is not None and importlib.util.find_spec('transformers') is not None:
+            from transformers import pipeline
+            distilbert_classifier = pipeline(
+                "zero-shot-classification", 
+                model="typeform/distilbert-base-uncased-mnli",
+                device=-1
+            )
+            print("DistilBERT transformer fallback enabled and initialized.")
+    except Exception as e:
+        print(f"Notice: DistilBERT initialization notice: {e}")
+        distilbert_classifier = None
+else:
+    print("Primary Pipeline: Fast TF-IDF + Calibrated LinearSVC with Triage Decision Layer (DistilBERT fallback disabled)")
 
 
 def preprocess_text(text):
@@ -474,126 +483,64 @@ def rows_to_dict_list(rows):
     """Convert list of SQLite Row objects to list of dictionaries"""
     return [row_to_dict(row) for row in rows]
 
-def classify_ticket(text, return_top_k=False):
-    """Classify ticket using production trained pipeline with calibrated confidence and safety guards"""
+def classify_ticket(text, return_top_k=False, return_structured=False):
+    """
+    Classify ticket using production trained LinearSVC pipeline and Triage Decision Layer.
+    Guarantees out-of-scope detection, ambiguity triage, input validation, and optional experimental DistilBERT fallback.
+    """
     try:
-        raw_text = str(text or "").strip()
-        processed_text = preprocess_text(raw_text)
-        raw_words = raw_text.split()
-        is_ambiguous = len(raw_words) < 3 or len(raw_text) < 12
+        raw_text = str(text or "")[:5000].strip()
         
-        # 1. Use high-accuracy production model if loaded
-        if production_model is not None:
-            # Handle empty/whitespace text edge case
-            if not processed_text:
-                default_cat = "General Inquiry"
-                default_preds = [{'category': default_cat, 'confidence': 40.0}]
-                return (default_cat, 40.0, default_preds) if return_top_k else (default_cat, 40.0)
-            
-            probs = production_model.predict_proba([processed_text])[0]
-            classes = list(production_model.classes_)
-            
-            # Rank top predictions
-            sorted_indices = np.argsort(probs)[::-1]
-            top_predictions = [
-                {
-                    'category': classes[idx],
-                    'confidence': round(float(probs[idx]) * 100, 2)
-                }
-                for idx in sorted_indices[:3]
-            ]
-            
-            best_category = top_predictions[0]['category']
-            best_confidence = top_predictions[0]['confidence']
-            
-            # Technical domain keyword check
-            tech_keywords = {
-                'login', 'log in', 'password', 'crash', 'crashed', 'crashing', 'error', 'bug', 'software',
-                'app', 'hardware', 'screen', 'server', 'wifi', 'network', 'connection', 'database',
-                '500', '404', 'code', 'device', 'laptop', 'phone', 'browser', 'install', 'update',
-                'port', 'driver', 'sync', 'reset', 'auth', '2fa', 'token', 'ssl', 'timeout', 'bluetooth',
-                'mouse', 'keyboard', 'printer', 'pc', 'windows', 'ios', 'android', 'mac'
-            }
-            tokens = set(processed_text.split())
-            has_tech_kw = bool(tokens & tech_keywords)
-            
-            # Out-Of-Distribution (OOD) Semantic Arbiter using DistilBERT:
-            # If input is classified as Technical Support but contains ZERO technical terms (e.g. 'the food is not good'),
-            # OR if LinearSVC confidence is low/uncertain, use DistilBERT zero-shot NLI to semantically categorize the ticket.
-            needs_distilbert = (
-                (best_category == "Technical Support" and not has_tech_kw) or
-                (best_confidence < 72.0)
-            )
-            
-            if distilbert_classifier is not None and needs_distilbert:
+        # 1. Use Triage Decision Layer with production model
+        decision = triage_layer.decide(
+            raw_text,
+            primary_model=production_model,
+            preprocessor_fn=preprocess_text
+        )
+        
+        # 2. Optional Experimental DistilBERT Fallback (only triggered when explicitly enabled)
+        if ENABLE_DISTILBERT_FALLBACK and distilbert_classifier is not None:
+            if decision['is_out_of_scope'] or decision['confidence'] < 50.0:
                 try:
+                    classes = list(getattr(production_model, 'classes_', [
+                        "Technical Support", "Billing", "Returns", "General Inquiry", "Complaint"
+                    ]))
                     bert_res = distilbert_classifier(raw_text, classes)
                     bert_top_cat = bert_res['labels'][0]
                     bert_conf = round(float(bert_res['scores'][0]) * 100, 2)
-                    
-                    # If LinearSVC guessed Technical Support without any tech keywords, trust DistilBERT's semantic verdict
-                    min_conf_threshold = 35.0 if (best_category == "Technical Support" and not has_tech_kw) else 50.0
-                    if bert_top_cat != best_category and bert_conf >= min_conf_threshold:
-                        best_category = bert_top_cat
-                        best_confidence = bert_conf
-                        top_predictions = [
-                            {'category': label, 'confidence': round(float(score) * 100, 2)}
-                            for label, score in zip(bert_res['labels'][:3], bert_res['scores'][:3])
-                        ]
-                except Exception as e:
-                    print(f"DistilBERT semantic inference notice: {e}")
-            
-            # Semantic Guardrail: Ensure out-of-domain hospitality/dining complaints never default to Technical Support
-            food_service_terms = {'food', 'meal', 'waiter', 'waitress', 'restaurant', 'dining', 'dish', 'drink', 'order'}
-            complaint_terms = {'bad', 'terrible', 'horrible', 'poor', 'awful', 'worst', 'rude', 'cold', 'dirty', 'slow', 'disappointing', 'unacceptable', 'not'}
-            if not has_tech_kw and (tokens & food_service_terms) and (tokens & complaint_terms or 'not good' in raw_text.lower()):
-                if best_category == "Technical Support":
-                    best_category = "Complaint"
-                    best_confidence = max(best_confidence, 55.0)
-                    top_predictions = [
-                        {'category': 'Complaint', 'confidence': best_confidence},
-                        {'category': 'General Inquiry', 'confidence': 30.0},
-                        {'category': 'Returns', 'confidence': 15.0}
-                    ]
-            
-            # Production Guardrail: Cap confidence for extremely brief/vague queries (< 3 words)
-            if is_ambiguous and best_confidence > 55.0:
-                best_confidence = 50.0
-                top_predictions[0]['confidence'] = 50.0
-            
-            if return_top_k:
-                return best_category, best_confidence, top_predictions
-            return best_category, best_confidence
-            
-        # 2. Check DistilBERT directly if production model is not loaded
-        elif distilbert_classifier is not None:
-            candidate_labels = ["Technical Support", "Billing", "Returns", "General Inquiry", "Complaint"]
-            bert_res = distilbert_classifier(raw_text, candidate_labels)
-            bert_top_cat = bert_res['labels'][0]
-            bert_conf = round(float(bert_res['scores'][0]) * 100, 2)
-            top_predictions = [
-                {'category': label, 'confidence': round(float(score) * 100, 2)}
-                for label, score in zip(bert_res['labels'][:3], bert_res['scores'][:3])
-            ]
-            if return_top_k:
-                return bert_top_cat, bert_conf, top_predictions
-            return bert_top_cat, bert_conf
-            
-        else:
-            # Safe default fallback
-            default_cat = "General Inquiry"
-            default_preds = [{'category': default_cat, 'confidence': 60.0}]
-            if return_top_k:
-                return default_cat, 60.0, default_preds
-            return default_cat, 60.0
-            
+                    if bert_conf >= 55.0:
+                        decision['predicted_category'] = bert_top_cat
+                        decision['confidence'] = bert_conf
+                        decision['review_reason'] = "Reclassified via Experimental DistilBERT Fallback"
+                except Exception as bert_err:
+                    print(f"DistilBERT fallback warning: {bert_err}")
+
+        if return_structured:
+            return decision
+        if return_top_k:
+            return decision['predicted_category'], decision['confidence'], decision['top_predictions']
+        return decision['predicted_category'], decision['confidence']
+
     except Exception as e:
         print(f"Classification error: {e}")
         fallback_cat = "General Inquiry"
         fallback_preds = [{'category': fallback_cat, 'confidence': 50.0}]
+        if return_structured:
+            return {
+                "predicted_category": fallback_cat,
+                "confidence": 50.0,
+                "confidence_level": "Low (Review Suggested)",
+                "needs_human_review": True,
+                "is_out_of_scope": True,
+                "review_reason": f"System Exception: {str(e)[:50]}",
+                "margin": 0.0,
+                "top_predictions": fallback_preds,
+                "domain_signals": 0
+            }
         if return_top_k:
             return fallback_cat, 50.0, fallback_preds
         return fallback_cat, 50.0
+
 
 @app.route('/')
 def index():
@@ -756,7 +703,7 @@ def classify_ticket_route():
         return jsonify({'error': 'Please login first'}), 401
     
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         ticket_text = data.get('ticket_text', '').strip()
         notification_email = data.get('notification_email', '').strip()
         
@@ -767,8 +714,15 @@ def classify_ticket_route():
         if notification_email and not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', notification_email):
             return jsonify({'error': 'Please enter a valid email address'}), 400
         
-        # Classify the ticket using production model
-        predicted_category, confidence, top_predictions = classify_ticket(ticket_text, return_top_k=True)
+        # Classify the ticket using production model + triage layer
+        decision = classify_ticket(ticket_text, return_structured=True)
+        predicted_category = decision['predicted_category']
+        confidence = decision['confidence']
+        top_predictions = decision['top_predictions']
+        top_categories = [
+            {'category': p['category'], 'probability': p['confidence']}
+            for p in top_predictions
+        ]
         
         # Save to database
         db = get_db()
@@ -786,15 +740,16 @@ def classify_ticket_route():
         if notification_email:
             email_sent = send_ticket_creation_email(notification_email, ticket_id, predicted_category, ticket_text, confidence)
         
-        needs_human_review = bool(confidence < 60.0 or len(ticket_text.split()) < 3)
-        confidence_level = "High" if confidence >= 75 else "Medium" if confidence >= 60 else "Low (Review Suggested)"
-        
         return jsonify({
             'category': predicted_category,
             'confidence': round(confidence, 2),
-            'confidence_level': confidence_level,
-            'needs_human_review': needs_human_review,
+            'confidence_level': decision['confidence_level'],
+            'needs_human_review': decision['needs_human_review'],
+            'is_out_of_scope': decision['is_out_of_scope'],
+            'review_reason': decision['review_reason'],
+            'margin': decision['margin'],
             'top_predictions': top_predictions,
+            'top_categories': top_categories,
             'description': category_descriptions.get(predicted_category, ''),
             'ticket_id': ticket_id,
             'email_sent': email_sent,
@@ -803,6 +758,36 @@ def classify_ticket_route():
         
     except Exception as e:
         return jsonify({'error': f'Classification error: {str(e)}'}), 500
+
+@app.route('/batch_classify', methods=['POST'])
+def batch_classify_route():
+    if 'user_id' not in session or session.get('is_admin'):
+        return jsonify({'error': 'Please login first'}), 401
+    
+    try:
+        data = request.get_json() or {}
+        tickets = data.get('tickets', [])
+        if not isinstance(tickets, list):
+            return jsonify({'error': 'Input must be a JSON array of tickets'}), 400
+        
+        results = []
+        for item in tickets:
+            text = str(item.get('text', item) if isinstance(item, dict) else item).strip()
+            if not text:
+                continue
+            decision = classify_ticket(text, return_structured=True)
+            results.append({
+                'text': text,
+                'category': decision['predicted_category'],
+                'confidence': round(decision['confidence'], 2),
+                'confidence_level': decision['confidence_level'],
+                'needs_human_review': decision['needs_human_review'],
+                'is_out_of_scope': decision['is_out_of_scope'],
+                'review_reason': decision['review_reason']
+            })
+        return jsonify({'results': results, 'total': len(results), 'success': True})
+    except Exception as e:
+        return jsonify({'error': f'Batch classification error: {str(e)}'}), 500
 
 @app.route('/admin/resolve_ticket', methods=['POST'])
 def resolve_ticket():

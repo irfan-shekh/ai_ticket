@@ -1,0 +1,41 @@
+[
+  {
+    "System": "System A: Primary Classifier Alone (LinearSVC)",
+    "Valid Acc": "96.0%",
+    "Macro F1": "96.0%",
+    "False Rejection Rate": "0.0%",
+    "OOS Rejection Prec": "100.0%",
+    "OOS Rejection Rec": "50.0%",
+    "OOS Rejection F1": "66.7%",
+    "False Acceptance Rate": "50.0%",
+    "Human Review Rate": "18.8%",
+    "Latency Mean (ms)": "2.89",
+    "Latency P95 (ms)": "3.40"
+  },
+  {
+    "System": "System B: Primary + Legacy DistilBERT Fallback",
+    "Valid Acc": "96.0%",
+    "Macro F1": "96.0%",
+    "False Rejection Rate": "0.0%",
+    "OOS Rejection Prec": "100.0%",
+    "OOS Rejection Rec": "46.7%",
+    "OOS Rejection F1": "63.6%",
+    "False Acceptance Rate": "53.3%",
+    "Human Review Rate": "17.5%",
+    "Latency Mean (ms)": "42.72",
+    "Latency P95 (ms)": "132.77"
+  },
+  {
+    "System": "System C: Primary + Improved Triage Decision Layer",
+    "Valid Acc": "96.0%",
+    "Macro F1": "96.0%",
+    "False Rejection Rate": "0.0%",
+    "OOS Rejection Prec": "100.0%",
+    "OOS Rejection Rec": "100.0%",
+    "OOS Rejection F1": "100.0%",
+    "False Acceptance Rate": "0.0%",
+    "Human Review Rate": "37.5%",
+    "Latency Mean (ms)": "13.77",
+    "Latency P95 (ms)": "18.15"
+  }
+]

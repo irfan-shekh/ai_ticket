@@ -1,0 +1,255 @@
+{
+  "benchmark_metadata": {
+    "total_samples": 80,
+    "valid_samples": 40,
+    "oos_samples": 40,
+    "description": "Independent stress-test set untouched during rule and threshold development"
+  },
+  "latency_summary": {
+    "System A: Primary Classifier Alone (LinearSVC)": {
+      "mean": 3.672736497828737,
+      "median": 3.3170500537380576,
+      "p95": 5.498650041408832,
+      "p99": 7.081098966300481,
+      "min": 2.853299956768751,
+      "max": 19.2719001788646,
+      "total_runs": 400
+    },
+    "System B: Primary + Legacy DistilBERT Fallback": {
+      "mean": 70.64395924564451,
+      "median": 108.1477499101311,
+      "p95": 155.58752006618303,
+      "p99": 179.94162789080278,
+      "min": 2.775000175461173,
+      "max": 255.56499999947846,
+      "total_runs": 400
+    },
+    "System C: Primary + Triage Decision Layer (Production)": {
+      "mean": 14.408001250121742,
+      "median": 14.038549968972802,
+      "p95": 16.762884822674096,
+      "p99": 20.0372760184109,
+      "min": 13.412100030109286,
+      "max": 23.898999905213714,
+      "total_runs": 400
+    }
+  },
+  "comparison_table": [
+    {
+      "System": "System A: Primary Classifier Alone (LinearSVC)",
+      "Valid Acc": "92.5%",
+      "Macro F1": "92.5%",
+      "Valid False Reject Rate": "5.0% (2/40)",
+      "OOS Rejection Recall": "32.5% (13/40)",
+      "OOS Rejection Precision": "86.7%",
+      "OOS Rejection F1": "47.3%",
+      "OOS False Accept Rate": "67.5% (27/40)",
+      "Human Review Rate": "18.8% (15/80)",
+      "Latency Mean (ms)": "3.67",
+      "Latency P95 (ms)": "5.50"
+    },
+    {
+      "System": "System B: Primary + Legacy DistilBERT Fallback",
+      "Valid Acc": "92.5%",
+      "Macro F1": "92.5%",
+      "Valid False Reject Rate": "5.0% (2/40)",
+      "OOS Rejection Recall": "42.5% (17/40)",
+      "OOS Rejection Precision": "89.5%",
+      "OOS Rejection F1": "57.6%",
+      "OOS False Accept Rate": "57.5% (23/40)",
+      "Human Review Rate": "23.8% (19/80)",
+      "Latency Mean (ms)": "70.64",
+      "Latency P95 (ms)": "155.59"
+    },
+    {
+      "System": "System C: Primary + Triage Decision Layer (Production)",
+      "Valid Acc": "92.5%",
+      "Macro F1": "92.5%",
+      "Valid False Reject Rate": "5.0% (2/40)",
+      "OOS Rejection Recall": "67.5% (27/40)",
+      "OOS Rejection Precision": "93.1%",
+      "OOS Rejection F1": "78.3%",
+      "OOS False Accept Rate": "32.5% (13/40)",
+      "Human Review Rate": "43.8% (35/80)",
+      "Latency Mean (ms)": "14.41",
+      "Latency P95 (ms)": "16.76"
+    }
+  ],
+  "system_c_per_class": "                   precision    recall  f1-score   support\n\n          Billing     1.0000    1.0000    1.0000         8\n        Complaint     0.8750    0.8750    0.8750         8\n  General Inquiry     0.8750    0.8750    0.8750         8\n          Returns     1.0000    0.8750    0.9333         8\nTechnical Support     0.8889    1.0000    0.9412         8\n\n         accuracy                         0.9250        40\n        macro avg     0.9278    0.9250    0.9249        40\n     weighted avg     0.9278    0.9250    0.9249        40\n",
+  "system_c_confusion_matrix": {
+    "Billing": {
+      "Billing": 8,
+      "Complaint": 0,
+      "General Inquiry": 0,
+      "Returns": 0,
+      "Technical Support": 0
+    },
+    "Complaint": {
+      "Billing": 0,
+      "Complaint": 7,
+      "General Inquiry": 0,
+      "Returns": 1,
+      "Technical Support": 0
+    },
+    "General Inquiry": {
+      "Billing": 0,
+      "Complaint": 1,
+      "General Inquiry": 7,
+      "Returns": 0,
+      "Technical Support": 0
+    },
+    "Returns": {
+      "Billing": 0,
+      "Complaint": 0,
+      "General Inquiry": 0,
+      "Returns": 7,
+      "Technical Support": 0
+    },
+    "Technical Support": {
+      "Billing": 0,
+      "Complaint": 0,
+      "General Inquiry": 1,
+      "Returns": 0,
+      "Technical Support": 8
+    }
+  },
+  "oos_leaks": [
+    {
+      "text": "how long should i slow cook beef short ribs in red wine broth in a dutch oven?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Technical Support",
+      "confidence": 79.29,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "can a residential landlord enter a tenant apartment without twenty four hours notice in california?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Complaint",
+      "confidence": 74.01,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "how do i implement a depth first search algorithm on an adjacency list in rust?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Technical Support",
+      "confidence": 69.89,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "what is the time complexity difference between mergesort and heapsort in the worst case?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Complaint",
+      "confidence": 58.05,
+      "is_oos_pred": false,
+      "needs_review": true
+    },
+    {
+      "text": "how do i write a sql query to find the second highest employee salary across departments?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Technical Support",
+      "confidence": 75.88,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "can you help me understand the concept of quantum wave function collapse?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "General Inquiry",
+      "confidence": 52.2,
+      "is_oos_pred": false,
+      "needs_review": true
+    },
+    {
+      "text": "in what chronological order should a new student read the plays of william shakespeare?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "General Inquiry",
+      "confidence": 93.88,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "how do you open a raw oyster shell safely using an oyster knife without cutting yourself?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Complaint",
+      "confidence": 65.37,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "i have a philosophical question about free will versus genetic determinism",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Billing",
+      "confidence": 42.21,
+      "is_oos_pred": false,
+      "needs_review": true
+    },
+    {
+      "text": "the government decided to close all public schools on tuesday due to heavy snowfall",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Complaint",
+      "confidence": 71.35,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "what order of magnitude is the mass of an electron compared to a proton?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "Complaint",
+      "confidence": 67.28,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "help me choose a good gift for my grandmother eightieth birthday celebration",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "General Inquiry",
+      "confidence": 75.14,
+      "is_oos_pred": false,
+      "needs_review": false
+    },
+    {
+      "text": "can you answer a trivia question regarding the origin of the ancient olympic games?",
+      "ground_truth": "OOS",
+      "is_oos_gt": true,
+      "pred_cat": "General Inquiry",
+      "confidence": 53.78,
+      "is_oos_pred": false,
+      "needs_review": true
+    }
+  ],
+  "valid_rejections": [
+    {
+      "text": "three weeks of empty promises from customer care and still nobody has solved my ticket",
+      "ground_truth": "Complaint",
+      "is_oos_gt": false,
+      "pred_cat": "Complaint",
+      "confidence": 45.0,
+      "is_oos_pred": true,
+      "needs_review": true
+    },
+    {
+      "text": "appalling service quality, treating loyal ten year enterprise customers with complete disdain",
+      "ground_truth": "Complaint",
+      "is_oos_gt": false,
+      "pred_cat": "Complaint",
+      "confidence": 45.0,
+      "is_oos_pred": true,
+      "needs_review": true
+    }
+  ]
+}
