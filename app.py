@@ -657,6 +657,31 @@ def admin_dashboard():
                          status_filter=status_filter,
                          category_filter=category_filter)
 
+@app.route('/classify_preview', methods=['POST'])
+def classify_preview_route():
+    """Public lightweight inference endpoint for the landing page interactive sandbox."""
+    try:
+        data = request.get_json() or {}
+        text = str(data.get('text', '') or data.get('ticket_text', '')).strip()
+        if not text:
+            return jsonify({'error': 'Please enter a message to classify'}), 400
+        
+        # Run through production model and triage layer
+        decision = classify_ticket(text, return_structured=True)
+        return jsonify({
+            'success': True,
+            'predicted_category': decision['predicted_category'],
+            'confidence': decision['confidence'],
+            'confidence_level': decision['confidence_level'],
+            'needs_human_review': decision['needs_human_review'],
+            'is_out_of_scope': decision['is_out_of_scope'],
+            'review_reason': decision['review_reason'],
+            'margin': decision['margin'],
+            'top_predictions': decision['top_predictions']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/classify', methods=['POST'])
 def classify_ticket_route():
     if 'user_id' not in session or session.get('is_admin'):

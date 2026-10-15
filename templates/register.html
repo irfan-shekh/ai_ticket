@@ -19,12 +19,12 @@
         .auth-card {
             max-width: 1000px;
             width: 100%;
-            background: rgba(16, 23, 38, 0.85);
+            background: var(--bg-card);
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-card);
             border-radius: var(--radius-lg);
             overflow: hidden;
-            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px -5px rgba(99, 102, 241, 0.25);
+            box-shadow: var(--shadow-lg);
         }
         .input-group-dark {
             position: relative;
@@ -59,12 +59,23 @@
             color: var(--text-primary);
         }
         .auth-sidebar {
-            background: radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.2) 0%, rgba(11, 17, 30, 0.95) 75%);
+            background: var(--bg-elevated);
             border-left: 1px solid var(--border-card);
             padding: 50px 40px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            position: relative;
+        }
+        .auth-sidebar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+            pointer-events: none;
         }
         .benefit-item {
             display: flex;
@@ -158,7 +169,7 @@
                 <!-- Right Feature Highlights Column -->
                 <div class="col-lg-6 auth-sidebar d-none d-lg-flex">
                     <div>
-                        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill small mb-4" style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: #a5b4fc;">
+                        <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill small mb-4" style="background: var(--bg-card); border: 1px solid var(--border-active); color: var(--primary);">
                             <i class="fas fa-sparkles"></i> AI Customer Portal
                         </div>
                         <h4 class="fw-bold mb-3">Instant Classification & Resolution Tracking</h4>
@@ -189,7 +200,7 @@
                         </div>
                     </div>
 
-                    <div class="p-3 rounded glass-card mt-4" style="background: rgba(11, 17, 30, 0.6);">
+                    <div class="p-3 rounded glass-card mt-4" style="background: var(--bg-card); border: 1px solid var(--border-card);">
                         <div class="d-flex align-items-center gap-2 small text-secondary">
                             <i class="fas fa-lock text-primary"></i>
                             <span>Secure password hashing & RBAC session management</span>
