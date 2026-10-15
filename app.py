@@ -1,12 +1,6 @@
 import sys
 import os
 
-# Auto-switch to project virtual environment if executed via system Python
-_venv_python = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'env', 'Scripts', 'python.exe')
-if sys.prefix == sys.base_prefix and os.path.exists(_venv_python) and os.path.abspath(sys.executable).lower() != os.path.abspath(_venv_python).lower():
-    import subprocess
-    sys.exit(subprocess.call([_venv_python] + sys.argv))
-
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import numpy as np
 import re
