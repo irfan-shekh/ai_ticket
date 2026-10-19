@@ -1,7 +1,7 @@
 {
-  "train_samples": 32000,
-  "test_samples": 8000,
-  "total_samples": 40000,
+  "train_samples": 42000,
+  "test_samples": 18000,
+  "total_samples": 60000,
   "categories": [
     "Billing",
     "Complaint",
@@ -10,9 +10,9 @@
     "Technical Support"
   ],
   "exact_leakage_count": 0,
-  "shared_template_skeletons_count": 514,
-  "test_samples_in_shared_skeletons": 560,
-  "shared_skeleton_percentage": 7.0,
-  "mean_word_count_train": 22.51,
-  "mean_word_count_test": 22.56
+  "shared_template_skeletons_count": 515,
+  "test_samples_in_shared_skeletons": 801,
+  "shared_skeleton_percentage": 4.45,
+  "mean_word_count_train": 22.5,
+  "mean_word_count_test": 22.5
 }

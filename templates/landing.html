@@ -322,7 +322,7 @@
                 </div>
                 <div class="col-6 col-md-3">
                     <div class="stat-box">
-                        <h2 class="display-5 fw-bold mb-1">40,000</h2>
+                        <h2 class="display-5 fw-bold mb-1">60,000</h2>
                         <p class="text-secondary small mb-0">Audited Records</p>
                     </div>
                 </div>
@@ -561,22 +561,23 @@
         }
 
         function renderSandboxResult(data) {
+            const rawCat = data.raw_category || data.predicted_category || 'General Inquiry';
             const cat = data.predicted_category || 'General Inquiry';
             const conf = data.confidence || 85.0;
-            const isOos = data.is_out_of_scope || false;
-            const needsReview = data.needs_human_review || false;
+            const isOos = data.is_out_of_scope || (cat === 'Out of Scope') || false;
+            const needsReview = data.needs_human_review || (conf < 60.0) || isOos || false;
 
             // Badges
             const badgeTriage = document.getElementById('badgeTriage');
             if (isOos) {
-                badgeTriage.className = 'badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25';
-                badgeTriage.innerHTML = '<i class="fas fa-ban"></i> Out of Scope (Rejected)';
-            } else if (needsReview) {
-                badgeTriage.className = 'badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25';
-                badgeTriage.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Needs Human Review';
+                badgeTriage.className = 'badge bg-danger text-white border border-danger';
+                badgeTriage.innerHTML = '<i class="fas fa-ban me-1"></i> Out of Scope (Needs Review)';
+            } else if (needsReview || conf < 60) {
+                badgeTriage.className = 'badge bg-warning text-dark border border-warning';
+                badgeTriage.innerHTML = '<i class="fas fa-user-clock me-1"></i> Needs Human Review';
             } else {
                 badgeTriage.className = 'badge bg-success bg-opacity-25 text-success border border-success border-opacity-25';
-                badgeTriage.innerHTML = '<i class="fas fa-check-circle"></i> In Scope & Routed';
+                badgeTriage.innerHTML = '<i class="fas fa-check-circle me-1"></i> In Scope & Routed';
             }
 
             // Category Icons & Badges
@@ -588,38 +589,54 @@
                 'Complaint': '<span class="badge-category badge-complaint"><i class="fas fa-exclamation-triangle"></i> Complaint</span>'
             };
 
-            document.getElementById('resCategory').innerHTML = categoryMap[cat] || `<span class="badge-category badge-inquiry">${cat}</span>`;
-            document.getElementById('resConfidence').textContent = `${conf.toFixed(1)}% (${conf >= 75 ? 'High' : 'Moderate'})`;
+            const resCategoryEl = document.getElementById('resCategory');
+            if (isOos) {
+                resCategoryEl.innerHTML = `<span class="badge bg-danger text-white fs-6 py-2 px-3"><i class="fas fa-ban me-1"></i> Out of Scope</span> <div class="text-secondary small mt-1">Non-support content <span class="text-muted">(Nearest candidate: ${rawCat})</span></div>`;
+            } else {
+                resCategoryEl.innerHTML = categoryMap[cat] || `<span class="badge-category badge-inquiry">${cat}</span>`;
+            }
+
+            const resConfidenceEl = document.getElementById('resConfidence');
+            if (isOos) {
+                resConfidenceEl.textContent = `${conf.toFixed(1)}% (Out of Scope)`;
+                resConfidenceEl.className = 'fw-bold text-danger';
+            } else if (conf < 60.0) {
+                resConfidenceEl.textContent = `${conf.toFixed(1)}% (Low < 60% - Human Review)`;
+                resConfidenceEl.className = 'fw-bold text-warning';
+            } else {
+                resConfidenceEl.textContent = `${conf.toFixed(1)}% (${conf >= 75 ? 'High' : 'Moderate'})`;
+                resConfidenceEl.className = 'fw-bold text-success';
+            }
             
             const pb = document.getElementById('progressBar');
             pb.style.width = `${Math.min(conf, 100)}%`;
-            pb.className = `progress-bar ${conf >= 75 ? 'bg-success' : (conf >= 55 ? 'bg-primary' : 'bg-warning')}`;
+            pb.className = `progress-bar ${isOos ? 'bg-danger' : (conf < 60 ? 'bg-warning' : (conf >= 75 ? 'bg-success' : 'bg-primary'))}`;
 
             // Reason
             const reason = document.getElementById('resReason');
             if (isOos) {
-                reason.innerHTML = '<i class="fas fa-shield-alt text-danger me-1"></i> <strong>Decision Layer:</strong> Message does not match support scope. Shielded from dispatch.';
-            } else if (needsReview) {
-                reason.innerHTML = '<i class="fas fa-user-clock text-warning me-1"></i> <strong>Triage Alert:</strong> Low confidence or margin ambiguity. Escalated for review.';
+                reason.innerHTML = `<i class="fas fa-shield-alt text-danger me-1"></i> <strong>Out of Scope:</strong> ${data.review_reason || 'Message does not match support scope'}. Flagged for human agent review.`;
+            } else if (needsReview || conf < 60) {
+                reason.innerHTML = `<i class="fas fa-user-clock text-warning me-1"></i> <strong>Human Review Needed:</strong> Confidence score (${conf.toFixed(1)}%) is below 60% threshold. Escalated for manual verification.`;
             } else {
-                reason.innerHTML = '<i class="fas fa-check-circle text-success me-1"></i> <strong>Decision Layer:</strong> Calibrated confidence verified. Routed to queue.';
+                reason.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i> <strong>Decision Layer:</strong> Calibrated confidence verified. Routed to ${cat} queue.`;
             }
         }
 
         function clientSideHeuristic(text) {
             const lower = text.toLowerCase();
-            if (lower.includes('recipe') || lower.includes('cookie') || lower.includes('cake') || lower.includes('weather')) {
-                renderSandboxResult({ predicted_category: 'General Inquiry', confidence: 35.0, is_out_of_scope: true, needs_human_review: true });
+            if (lower.includes('recipe') || lower.includes('cookie') || lower.includes('cake') || lower.includes('weather') || lower.includes('cook') || lower.includes('rice') || lower.includes('morning') || lower.includes('hello') || lower.includes('joke')) {
+                renderSandboxResult({ predicted_category: 'Out of Scope', raw_category: 'General Inquiry', confidence: 35.0, is_out_of_scope: true, needs_human_review: true, review_reason: 'Unrelated Topic / Out of Scope' });
             } else if (lower.includes('hour') || lower.includes('address') || lower.includes('located') || lower.includes('spec')) {
-                renderSandboxResult({ predicted_category: 'General Inquiry', confidence: 85.0, is_out_of_scope: false, needs_human_review: false });
+                renderSandboxResult({ predicted_category: 'General Inquiry', raw_category: 'General Inquiry', confidence: 85.0, is_out_of_scope: false, needs_human_review: false });
             } else if (lower.includes('charge') || lower.includes('bill') || lower.includes('invoice') || lower.includes('subscription')) {
-                renderSandboxResult({ predicted_category: 'Billing', confidence: 97.4, is_out_of_scope: false, needs_human_review: false });
+                renderSandboxResult({ predicted_category: 'Billing', raw_category: 'Billing', confidence: 97.4, is_out_of_scope: false, needs_human_review: false });
             } else if (lower.includes('refund') || lower.includes('return') || lower.includes('broken')) {
-                renderSandboxResult({ predicted_category: 'Returns', confidence: 98.2, is_out_of_scope: false, needs_human_review: false });
+                renderSandboxResult({ predicted_category: 'Returns', raw_category: 'Returns', confidence: 98.2, is_out_of_scope: false, needs_human_review: false });
             } else if (lower.includes('error') || lower.includes('login') || lower.includes('server') || lower.includes('crash')) {
-                renderSandboxResult({ predicted_category: 'Technical Support', confidence: 94.6, is_out_of_scope: false, needs_human_review: false });
+                renderSandboxResult({ predicted_category: 'Technical Support', raw_category: 'Technical Support', confidence: 94.6, is_out_of_scope: false, needs_human_review: false });
             } else {
-                renderSandboxResult({ predicted_category: 'Complaint', confidence: 88.0, is_out_of_scope: false, needs_human_review: false });
+                renderSandboxResult({ predicted_category: 'Complaint', raw_category: 'Complaint', confidence: 88.0, is_out_of_scope: false, needs_human_review: false });
             }
         }
 

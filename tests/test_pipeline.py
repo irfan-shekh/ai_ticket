@@ -107,6 +107,8 @@ class TestTicketClassificationPipeline(unittest.TestCase):
     def test_out_of_scope_rejection(self):
         """Unrelated topics must be flagged as out-of-scope and routed for human review."""
         unrelated_prompts = [
+            "good morning",
+            "how to cook rice",
             "What is the capital city of Australia?",
             "Can you give me a recipe for chocolate chip cookies?",
             "Write a python function to sort an array using quicksort",
@@ -121,6 +123,8 @@ class TestTicketClassificationPipeline(unittest.TestCase):
                 f"Prompt '{prompt}' should be recognized as out-of-scope"
             )
             self.assertTrue(res['needs_human_review'])
+            self.assertEqual(res['predicted_category'], 'Out of Scope')
+            self.assertLess(res['confidence'], 60.0)
 
     def test_gibberish_and_noise_detection(self):
         """Pure noise and keyboard mashing must be trapped as out-of-scope."""

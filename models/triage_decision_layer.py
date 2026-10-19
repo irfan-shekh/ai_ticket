@@ -52,8 +52,8 @@ SUPPORT_DOMAIN_KEYWORDS = {
     'locations', 'address', 'contact', 'phone number', 'telephone', 'call center', 'support team',
     'agent', 'agents', 'help', 'assist', 'assistance', 'inquiry', 'inquiries', 'question', 'questions',
     'specs', 'specification', 'specifications', 'feature', 'features', 'compatible', 'compatibility',
-    'discount', 'discounts', 'coupon', 'promo', 'promotion', 'policy', 'policies', 'terms', 'how do i',
-    'how to', 'can i', 'where can i', 'do you ship', 'international shipping',
+    'discount', 'discounts', 'coupon', 'promo', 'promotion', 'policy', 'policies', 'terms',
+    'do you ship', 'international shipping',
     
     # Complaints & Service Feedback
     'complaint', 'complaints', 'complain', 'complaining', 'rude', 'rudeness', 'unacceptable',
@@ -100,14 +100,14 @@ GENERAL_INQUIRY_INDICATORS = {
     'specifications', 'specification', 'specs', 'compatible with', 'compatibility'
 }
 
-# Explicit Out-of-Scope Patterns (Trivia, recipes, generic chit-chat, coding questions)
+# Explicit Out-of-Scope Patterns (Trivia, recipes, generic greetings, chit-chat, coding questions)
 EXPLICIT_OUT_OF_SCOPE_PATTERNS = [
     r'\b(capital (city )?of|president of|prime minister of|who wrote|who invented|who discovered|chemical formula|boiling point|how far is the moon|how do airplanes)\b',
-    r'\b(recipe for|ingredients for|how to bake|how to cook|baking soda|chocolate chip|what should i eat for lunch|eat for lunch)\b',
+    r'\b(recipe(s)?|ingredients for|how to (cook|bake|make|boil|prepare|fry|grill)|cook(ing)? rice|bake a cake|baking soda|chocolate chip|what should i eat|eat for (lunch|dinner|breakfast))\b',
     r'\b(weather in|weather forecast|temperature in|rain today)\b',
     r'\b(who won the|score of the game|world cup|super bowl|nba champions|rules of playing chess|playing chess)\b',
     r'\b(write a python|python function|binary search tree|sort an array|quicksort in java|java function|leetcode)\b',
-    r'\b(tell me a joke|tell me a story|who created you|what is your favorite color|are you an ai|good morning have a wonderful)\b',
+    r'\b(tell me a joke|tell me a story|who created you|what is your (name|favorite color)|who are you|how old are you|are you an ai|good (morning|afternoon|evening|night)|how are you doing|how are you today|nice to meet you)\b',
     r'\b(hotel room|airline flight|commercial airline|boarding pass|public parking garage)\b',
     r'\b(mountain bicycle|flat tire on my bicycle|tourist attractions in rome|movie to watch on netflix|morning run in the park|cat fell asleep|interstate highway)\b',
     r'\b(luxury watches|won a cash lottery|crypto investment opportunity)\b'
@@ -182,7 +182,9 @@ class TriageDecisionLayer:
         # 1. Edge Case: Empty or Whitespace Input
         if not text:
             return {
-                "predicted_category": "General Inquiry",
+                "predicted_category": "Out of Scope",
+                "raw_category": "General Inquiry",
+                "display_category": "Out of Scope",
                 "confidence": 0.0,
                 "confidence_level": "Low (Review Suggested)",
                 "needs_human_review": True,
@@ -196,7 +198,9 @@ class TriageDecisionLayer:
         # 2. Edge Case: Gibberish or Noise Input
         if check_gibberish(text):
             return {
-                "predicted_category": "General Inquiry",
+                "predicted_category": "Out of Scope",
+                "raw_category": "General Inquiry",
+                "display_category": "Out of Scope",
                 "confidence": 30.0,
                 "confidence_level": "Low (Review Suggested)",
                 "needs_human_review": True,
@@ -282,7 +286,7 @@ class TriageDecisionLayer:
         # Decision Rule D: Sub-threshold Confidence
         elif confidence_pct < self.min_confidence_threshold:
             needs_human_review = True
-            review_reason = "Low Confidence Prediction"
+            review_reason = "Low Confidence Prediction (< 60%)"
 
         # Decision Rule E: Ultra-short inputs without clear action (e.g. 1-2 generic words)
         elif len(words) < 3 and domain_signals < 2 and not any(k in text.lower() for k in ['refund', 'cancel', 'return', 'exchange', 'login']):
@@ -290,6 +294,12 @@ class TriageDecisionLayer:
             review_reason = "Insufficient Details (Clarification Needed)"
             if confidence_pct > 55.0:
                 confidence_pct = 50.0
+
+        # Mandatory Enforcement: Any prediction with confidence < 60% requires human review
+        if confidence_pct < self.min_confidence_threshold:
+            needs_human_review = True
+            if not is_out_of_scope and (review_reason.startswith("None") or review_reason == "Low Confidence Prediction"):
+                review_reason = f"Low Confidence Prediction ({confidence_pct:.1f}% < 60.0% threshold)"
 
         # Confidence Level Tagging
         if confidence_pct >= 75.0 and not needs_human_review:
@@ -299,8 +309,12 @@ class TriageDecisionLayer:
         else:
             confidence_level = "Low (Review Suggested)"
 
+        final_category = "Out of Scope" if is_out_of_scope else predicted_category
+
         return {
-            "predicted_category": predicted_category,
+            "predicted_category": final_category,
+            "raw_category": predicted_category,
+            "display_category": final_category,
             "confidence": confidence_pct,
             "confidence_level": confidence_level,
             "needs_human_review": needs_human_review,

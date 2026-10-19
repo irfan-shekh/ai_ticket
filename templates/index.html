@@ -242,24 +242,46 @@
 
             // Display single classification results
             function displayResults(data) {
+                const isOos = Boolean(data.is_out_of_scope || data.category === 'Out of Scope');
+                const needsReview = Boolean(data.needs_human_review || (data.confidence < 60.0) || isOos);
+
                 const categoryColors = {
                     'Technical Support': 'primary',
                     'Returns': 'success',
                     'Billing': 'warning',
                     'General Inquiry': 'info',
-                    'Complaint': 'danger'
+                    'Complaint': 'danger',
+                    'Out of Scope': 'danger'
                 };
+
+                let triageBanner = '';
+                if (isOos) {
+                    triageBanner = `
+                        <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">
+                            <i class="fas fa-ban fs-5"></i>
+                            <div><strong>Out of Scope:</strong> ${data.review_reason || 'Message does not match support scope'}. Flagged for human agent review.</div>
+                        </div>`;
+                } else if (needsReview || data.confidence < 60.0) {
+                    triageBanner = `
+                        <div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
+                            <i class="fas fa-exclamation-triangle fs-5"></i>
+                            <div><strong>Human Review Needed:</strong> Confidence score (${data.confidence}%) is below 60%. Flagged for manual agent review.</div>
+                        </div>`;
+                }
+
+                const confColor = isOos ? 'text-danger' : (data.confidence < 60.0 ? 'text-warning' : 'text-success');
 
                 let html = `
                     <div class="result-card card border-0 shadow-sm mb-4">
                         <div class="card-body">
+                            ${triageBanner}
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <span class="badge bg-${categoryColors[data.category] || 'secondary'} fs-6">
-                                    ${data.category}
+                                    <i class="fas ${isOos ? 'fa-ban' : 'fa-tag'} me-1"></i> ${data.category}
                                 </span>
-                                <span class="text-success fw-bold">${data.confidence}% confident</span>
+                                <span class="${confColor} fw-bold">${data.confidence}% confident</span>
                             </div>
-                            <p class="text-muted">${data.description}</p>
+                            <p class="text-muted">${data.description || ''}</p>
                             
                             <h6 class="mt-4 mb-3">Confidence Breakdown:</h6>
                 `;

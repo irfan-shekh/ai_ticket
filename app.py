@@ -442,8 +442,25 @@ def init_db():
         c.execute('ALTER TABLE tickets ADD COLUMN resolved_by INTEGER NULL')
         c.execute('ALTER TABLE tickets ADD COLUMN resolution_notes TEXT NULL')
     
+    # Check if triage columns exist, if not add them
+    if not check_column_exists('tickets', 'is_out_of_scope'):
+        print("Adding is_out_of_scope column to tickets table...")
+        c.execute('ALTER TABLE tickets ADD COLUMN is_out_of_scope INTEGER DEFAULT 0')
+    if not check_column_exists('tickets', 'needs_human_review'):
+        print("Adding needs_human_review column to tickets table...")
+        c.execute('ALTER TABLE tickets ADD COLUMN needs_human_review INTEGER DEFAULT 0')
+    if not check_column_exists('tickets', 'review_reason'):
+        print("Adding review_reason column to tickets table...")
+        c.execute('ALTER TABLE tickets ADD COLUMN review_reason TEXT DEFAULT ""')
+    
     conn.commit()
     conn.close()
+
+# Ensure database is initialized on import
+try:
+    init_db()
+except Exception as _e:
+    print(f"Warning: init_db on import failed: {_e}")
 
 def get_db():
     conn = sqlite3.connect(app.config['DATABASE'])
@@ -668,13 +685,20 @@ def classify_preview_route():
         
         # Run through production model and triage layer
         decision = classify_ticket(text, return_structured=True)
+        conf = decision['confidence']
+        is_oos = bool(decision['is_out_of_scope'])
+        needs_review = bool(decision['needs_human_review'] or (conf < 60.0))
+        cat = 'Out of Scope' if is_oos else decision['predicted_category']
+
         return jsonify({
             'success': True,
-            'predicted_category': decision['predicted_category'],
-            'confidence': decision['confidence'],
-            'confidence_level': decision['confidence_level'],
-            'needs_human_review': decision['needs_human_review'],
-            'is_out_of_scope': decision['is_out_of_scope'],
+            'predicted_category': cat,
+            'raw_category': decision.get('raw_category', decision['predicted_category']),
+            'display_category': cat,
+            'confidence': conf,
+            'confidence_level': 'Low (Review Suggested)' if (conf < 60.0 or needs_review) else decision['confidence_level'],
+            'needs_human_review': needs_review,
+            'is_out_of_scope': is_oos,
             'review_reason': decision['review_reason'],
             'margin': decision['margin'],
             'top_predictions': decision['top_predictions']
@@ -701,8 +725,13 @@ def classify_ticket_route():
         
         # Classify the ticket using production model + triage layer
         decision = classify_ticket(ticket_text, return_structured=True)
-        predicted_category = decision['predicted_category']
         confidence = decision['confidence']
+        is_oos = bool(decision['is_out_of_scope'])
+        needs_review = bool(decision['needs_human_review'] or (confidence < 60.0))
+        predicted_category = 'Out of Scope' if is_oos else decision['predicted_category']
+        raw_category = decision.get('raw_category', decision['predicted_category'])
+        review_reason = decision['review_reason']
+        
         top_predictions = decision['top_predictions']
         top_categories = [
             {'category': p['category'], 'probability': p['confidence']}
@@ -712,9 +741,9 @@ def classify_ticket_route():
         # Save to database
         db = get_db()
         cursor = db.execute('''
-            INSERT INTO tickets (user_id, ticket_text, predicted_category, confidence, notification_email)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (session['user_id'], ticket_text, predicted_category, confidence, notification_email))
+            INSERT INTO tickets (user_id, ticket_text, predicted_category, confidence, notification_email, is_out_of_scope, needs_human_review, review_reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (session['user_id'], ticket_text, predicted_category, confidence, notification_email, int(is_oos), int(needs_review), review_reason))
         
         ticket_id = cursor.lastrowid
         db.commit()
@@ -725,17 +754,21 @@ def classify_ticket_route():
         if notification_email:
             email_sent = send_ticket_creation_email(notification_email, ticket_id, predicted_category, ticket_text, confidence)
         
+        desc = "This message is outside customer support scope and has been flagged for human review." if is_oos else category_descriptions.get(predicted_category, '')
+        
         return jsonify({
             'category': predicted_category,
+            'raw_category': raw_category,
+            'display_category': predicted_category,
             'confidence': round(confidence, 2),
-            'confidence_level': decision['confidence_level'],
-            'needs_human_review': decision['needs_human_review'],
-            'is_out_of_scope': decision['is_out_of_scope'],
-            'review_reason': decision['review_reason'],
+            'confidence_level': 'Low (Review Suggested)' if (confidence < 60.0 or needs_review) else decision['confidence_level'],
+            'needs_human_review': needs_review,
+            'is_out_of_scope': is_oos,
+            'review_reason': review_reason,
             'margin': decision['margin'],
             'top_predictions': top_predictions,
             'top_categories': top_categories,
-            'description': category_descriptions.get(predicted_category, ''),
+            'description': desc,
             'ticket_id': ticket_id,
             'email_sent': email_sent,
             'success': True

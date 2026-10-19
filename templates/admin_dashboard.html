@@ -44,6 +44,7 @@
         .ticket-item-card.returns { border-left-color: var(--returns-color); }
         .ticket-item-card.generalinquiry { border-left-color: var(--inquiry-color); }
         .ticket-item-card.complaint { border-left-color: var(--complaint-color); }
+        .ticket-item-card.outofscope { border-left-color: #ef4444; }
         
         .modal-content-dark {
             background: #111827;
@@ -195,17 +196,31 @@
                                     {% elif ticket.predicted_category == 'Billing' %}badge-billing
                                     {% elif ticket.predicted_category == 'Returns' %}badge-returns
                                     {% elif ticket.predicted_category == 'General Inquiry' %}badge-inquiry
+                                    {% elif ticket.predicted_category == 'Out of Scope' %}badge-complaint
                                     {% else %}badge-complaint{% endif %}">
                                     <i class="fas 
                                         {% if ticket.predicted_category == 'Technical Support' %}fa-code-branch
                                         {% elif ticket.predicted_category == 'Billing' %}fa-receipt
                                         {% elif ticket.predicted_category == 'Returns' %}fa-undo-alt
                                         {% elif ticket.predicted_category == 'General Inquiry' %}fa-info-circle
+                                        {% elif ticket.predicted_category == 'Out of Scope' %}fa-ban
                                         {% else %}fa-exclamation-triangle{% endif %}"></i>
                                     {{ ticket.predicted_category }}
                                 </span>
 
-                                <span class="badge rounded-pill small" style="background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.75rem;">
+                                {% if ticket.is_out_of_scope or ticket.predicted_category == 'Out of Scope' %}
+                                <span class="badge bg-danger text-white small" style="font-size: 0.75rem;">
+                                    <i class="fas fa-ban me-1"></i> Out of Scope
+                                </span>
+                                {% endif %}
+
+                                {% if ticket.needs_human_review or ticket.confidence < 60 %}
+                                <span class="badge bg-warning text-dark small" style="font-size: 0.75rem;">
+                                    <i class="fas fa-user-clock me-1"></i> Needs Review
+                                </span>
+                                {% endif %}
+
+                                <span class="badge rounded-pill small" style="background: rgba(255,255,255,0.06); color: {% if ticket.confidence < 60 %}#f59e0b{% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
                                     {{ "%.1f"|format(ticket.confidence) }}% confidence
                                 </span>
                             </div>
