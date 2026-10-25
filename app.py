@@ -35,13 +35,42 @@ except ImportError:
                     os.environ.setdefault(key.strip(), val.strip().strip("'\""))
 
 
-# Download NLTK resources
-nltk.download('stopwords')
-nltk.download('wordnet')
+# Configure NLTK data directory (support serverless environments like Vercel / AWS Lambda)
+# Serverless containers have read-only root filesystems; downloads must use /tmp or be handled gracefully.
+nltk_data_dir = '/tmp/nltk_data' if (os.getenv('VERCEL') or os.path.exists('/tmp')) else os.path.join(os.path.expanduser('~'), 'nltk_data')
+try:
+    os.makedirs(nltk_data_dir, exist_ok=True)
+    if nltk_data_dir not in nltk.data.path:
+        nltk.data.path.append(nltk_data_dir)
+except Exception:
+    pass
+
+for _item, _pkg in [('corpora/stopwords', 'stopwords'), ('corpora/wordnet', 'wordnet')]:
+    try:
+        nltk.data.find(_item)
+    except LookupError:
+        try:
+            nltk.download(_pkg, download_dir=nltk_data_dir, quiet=True)
+        except Exception as _e:
+            print(f"Notice: Optional NLTK resource {_pkg} download skipped: {_e}")
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-123')
-app.config['DATABASE'] = os.getenv('DATABASE', 'tickets.db')
+
+# Database configuration (support serverless environments like Vercel / AWS Lambda)
+default_db = 'tickets.db'
+if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME') or (os.path.exists('/tmp') and not os.access('.', os.W_OK)):
+    tmp_db = '/tmp/tickets.db'
+    repo_db = os.path.join(os.path.dirname(__file__), 'tickets.db')
+    if not os.path.exists(tmp_db) and os.path.exists(repo_db):
+        try:
+            import shutil
+            shutil.copyfile(repo_db, tmp_db)
+        except Exception as _e:
+            print(f"Notice: Could not copy initial db to /tmp: {_e}")
+    default_db = tmp_db
+
+app.config['DATABASE'] = os.getenv('DATABASE', default_db)
 
 # Email configuration (loaded from .env)
 app.config['SMTP_SERVER'] = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
