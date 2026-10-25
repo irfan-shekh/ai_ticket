@@ -54,7 +54,12 @@ for _item, _pkg in [('corpora/stopwords', 'stopwords'), ('corpora/wordnet', 'wor
         except Exception as _e:
             print(f"Notice: Optional NLTK resource {_pkg} download skipped: {_e}")
 
-app = Flask(__name__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_DIR, 'templates'),
+    static_folder=os.path.join(BASE_DIR, 'static')
+)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-123')
 
 # Database configuration (support serverless environments like Vercel / AWS Lambda)
