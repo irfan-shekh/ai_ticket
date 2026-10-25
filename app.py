@@ -62,6 +62,29 @@ app = Flask(
 )
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-123')
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+class VercelPathFixMiddleware:
+    """Restores original client requested path when Vercel rewrites to /api/index or /app.py"""
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        matched = environ.get('HTTP_X_MATCHED_PATH') or environ.get('HTTP_X_FORWARDED_URI')
+        if matched:
+            environ['PATH_INFO'] = matched.split('?')[0]
+        else:
+            path_info = environ.get('PATH_INFO', '')
+            if path_info.startswith('/api/index'):
+                remainder = path_info[len('/api/index'):]
+                environ['PATH_INFO'] = remainder if remainder.startswith('/') else ('/' + remainder)
+            elif path_info == '/app.py':
+                environ['PATH_INFO'] = '/'
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = VercelPathFixMiddleware(app.wsgi_app)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 # Database configuration (support serverless environments like Vercel / AWS Lambda)
 default_db = 'tickets.db'
 if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME') or (os.path.exists('/tmp') and not os.access('.', os.W_OK)):
@@ -554,6 +577,7 @@ def classify_ticket(text, return_top_k=False, return_structured=False):
 
 
 @app.route('/')
+@app.route('/api/index')
 def index():
     """Landing page - show to unauthenticated users"""
     if 'user_id' in session:
