@@ -574,6 +574,7 @@ def init_db():
                 username VARCHAR(150) UNIQUE NOT NULL,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
+                tickets_created INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         ''')
@@ -597,6 +598,7 @@ def init_db():
             );
         ''')
         # Idempotent column migrations for Neon PostgreSQL
+        cur.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS tickets_created INTEGER DEFAULT 0;')
         cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS notification_email VARCHAR(255);')
         cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP NULL;')
         cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_by INTEGER NULL;')
@@ -604,6 +606,29 @@ def init_db():
         cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_out_of_scope INTEGER DEFAULT 0;')
         cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_human_review INTEGER DEFAULT 0;')
         cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review_reason TEXT DEFAULT \'\';')
+
+        # Automatic sync trigger for tickets_created on users table
+        cur.execute('''
+            CREATE OR REPLACE FUNCTION update_user_tickets_created()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                IF (TG_OP = 'INSERT') THEN
+                    UPDATE users SET tickets_created = (SELECT COUNT(*) FROM tickets WHERE user_id = NEW.user_id) WHERE id = NEW.user_id;
+                    RETURN NEW;
+                ELSIF (TG_OP = 'DELETE') THEN
+                    UPDATE users SET tickets_created = (SELECT COUNT(*) FROM tickets WHERE user_id = OLD.user_id) WHERE id = OLD.user_id;
+                    RETURN OLD;
+                END IF;
+                RETURN NULL;
+            END;
+            $$ LANGUAGE plpgsql;
+        ''')
+        cur.execute('DROP TRIGGER IF EXISTS trg_update_user_tickets_created ON tickets;')
+        cur.execute('''
+            CREATE TRIGGER trg_update_user_tickets_created
+            AFTER INSERT OR DELETE ON tickets
+            FOR EACH ROW EXECUTE FUNCTION update_user_tickets_created();
+        ''')
     raw_conn.close()
     print("Neon PostgreSQL schema initialized successfully.")
 
