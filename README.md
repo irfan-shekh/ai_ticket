@@ -59,23 +59,38 @@ graph TD
     SVC -->|5. Probability Distribution| Triage[Triage Decision Layer<br/>Confidence + Margin + Domain Lexicon]
     Triage -->|OOS / Ambiguous| HumanReview[Flag: Needs Human Review<br/>is_out_of_scope = True]
     Triage -->|In-Scope & Confident| AutoRoute[Auto-Routed to Category]
-    AutoRoute & HumanReview -->|6. Store Record| DB[(SQLite Database<br/>tickets.db / /tmp)]
+    AutoRoute & HumanReview -->|6. Store Record| DB[(PostgreSQL Database<br/>Neon Cloud / SQLite Fallback)]
     AutoRoute -->|7. Confirmation Email| SMTP[SMTP Service]
 ```
 
 ---
 
-## ☁️ Cloud & Serverless Deployment Architecture (Vercel)
+## ☁️ Cloud & Serverless Deployment Architecture (Vercel & Neon)
 
-TicketAI runs natively as a zero-configuration serverless web application on **Vercel** with the following production architecture:
+TicketAI runs natively as a zero-configuration serverless web application on **Vercel** backed by **Neon PostgreSQL**:
 
 | Component | Cloud / Serverless Implementation | Benefit |
 | :--- | :--- | :--- |
+| **Database (Production)** | **Neon Serverless PostgreSQL** via `DATABASE_URL` | Persistent user accounts, tickets, and resolutions across all serverless cold starts & regional edges |
+| **Database (Fallback)** | Self-healing SQLite (`tickets.db` / `/tmp/tickets.db`) | Automatic offline fallback for local tests and zero-dependency development |
 | **Routing** | Zero-Config Native Flask Framework Preset via `app.py` | Eliminates complex rewrite conflicts; full client route fidelity |
 | **Static Assets** | Global Edge CDN via `public/static/` | Instant 0ms asset loading, global browser caching, correct MIME types |
 | **Filesystem Safety**| NLTK cached to `/tmp/nltk_data` with offline graceful fallbacks | Prevents Lambda read-only filesystem crashes (`[Errno 30]`) |
-| **Database** | Self-healing on-demand schema setup in `/tmp/tickets.db` | Automatic table generation on cold starts; zero downtime |
 | **Reverse Proxy** | Werkzeug `ProxyFix(x_for=1, x_proto=1, x_host=1, x_prefix=1)` | Correct HTTPS scheme detection and URL generation |
+
+### 🐘 Setting Up Neon PostgreSQL
+
+1. **Create Free Database**:
+   - Go to [Neon.tech](https://neon.tech) and create a free project (e.g. `ai-ticket`).
+2. **Copy Connection String**:
+   - In your Neon Console dashboard, copy the connection URI:
+     `postgresql://user:password@ep-xyz-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require`
+3. **Add to Vercel**:
+   - Go to your Vercel project: **Settings -> Environment Variables**.
+   - Add **`DATABASE_URL`** (or `POSTGRES_URL`) and paste your Neon connection string.
+   - Click **Save**.
+4. **Local Development (Optional)**:
+   - Add `DATABASE_URL=...` to your `.env` file to share the exact same database between local development and production. If omitted, TicketAI seamlessly defaults to local `tickets.db`.
 
 ---
 

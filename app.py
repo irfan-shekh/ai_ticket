@@ -8,6 +8,13 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import sqlite3
+try:
+    import psycopg2
+    import psycopg2.extras
+    HAVE_PSYCOPG2 = True
+except ImportError:
+    psycopg2 = None
+    HAVE_PSYCOPG2 = False
 from werkzeug.security import generate_password_hash, check_password_hash
 import pickle
 import joblib
@@ -65,26 +72,34 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-123')
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-# Database configuration (support serverless environments like Vercel / AWS Lambda)
-# On serverless platforms (/var/task is read-only), SQLite must always use /tmp/tickets.db.
-is_serverless = bool(
-    os.getenv('VERCEL') 
-    or os.getenv('AWS_LAMBDA_FUNCTION_NAME') 
-    or (os.path.exists('/tmp') and not os.access('.', os.W_OK))
-)
+# Database Configuration: Neon PostgreSQL (Production/Cloud) with SQLite Local/Fallback
+RAW_DB_URL = os.getenv('DATABASE_URL') or os.getenv('POSTGRES_URL') or os.getenv('POSTGRES_PRISMA_URL')
+USE_POSTGRES = False
 
-if is_serverless:
-    target_db = '/tmp/tickets.db'
-    repo_db = os.path.join(os.path.dirname(__file__), 'tickets.db')
-    if not os.path.exists(target_db) and os.path.exists(repo_db):
-        try:
-            import shutil
-            shutil.copyfile(repo_db, target_db)
-        except Exception as _e:
-            print(f"Notice: Could not copy initial db to /tmp: {_e}")
-    app.config['DATABASE'] = target_db
+if RAW_DB_URL and (RAW_DB_URL.startswith('postgres://') or RAW_DB_URL.startswith('postgresql://')):
+    # Fix postgres:// scheme for psycopg2 compatibility
+    if RAW_DB_URL.startswith('postgres://'):
+        RAW_DB_URL = RAW_DB_URL.replace('postgres://', 'postgresql://', 1)
+    # Ensure sslmode=require for Neon if not explicitly set
+    if 'sslmode' not in RAW_DB_URL:
+        sep = '&' if '?' in RAW_DB_URL else '?'
+        RAW_DB_URL = f"{RAW_DB_URL}{sep}sslmode=require"
+    USE_POSTGRES = True
+    app.config['DATABASE_TYPE'] = 'postgres'
+    app.config['DATABASE_URL'] = RAW_DB_URL
+    print("Configured for Neon PostgreSQL database.")
 else:
-    app.config['DATABASE'] = os.getenv('DATABASE', 'tickets.db')
+    app.config['DATABASE_TYPE'] = 'sqlite'
+    is_serverless = bool(
+        os.getenv('VERCEL') 
+        or os.getenv('AWS_LAMBDA_FUNCTION_NAME') 
+        or (os.path.exists('/tmp') and not os.access('.', os.W_OK))
+    )
+    if is_serverless:
+        app.config['DATABASE'] = '/tmp/tickets.db'
+    else:
+        app.config['DATABASE'] = os.getenv('DATABASE', 'tickets.db')
+    print(f"Configured for SQLite database at: {app.config['DATABASE']}")
 
 # Email configuration (loaded from .env)
 app.config['SMTP_SERVER'] = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
@@ -433,6 +448,123 @@ def send_ticket_resolution_email(to_email, ticket_id, category, ticket_text, res
     subject = f"TicketAI - Your Ticket #{ticket_id} has been Resolved"
     return send_email(to_email, subject, html_body)
 
+class PGCursorWrapper:
+    """Wraps a psycopg2 cursor to provide an SQLite-compatible interface:
+    - Automatically converts '?' placeholders to '%s'
+    - Automatically captures lastrowid on INSERT queries via RETURNING id
+    - Supports fetchone, fetchall, and iteration with RealDictCursor rows
+    """
+    def __init__(self, raw_cursor):
+        self._cursor = raw_cursor
+        self.lastrowid = None
+
+    def execute(self, sql, params=None):
+        if params is None:
+            params = ()
+        elif isinstance(params, list):
+            params = tuple(params)
+        elif not isinstance(params, tuple):
+            params = (params,)
+            
+        # Replace ? with %s for psycopg2
+        pg_sql = sql.replace('?', '%s')
+        
+        # Check if INSERT statement without RETURNING to emulate cursor.lastrowid
+        trimmed = pg_sql.strip()
+        is_insert = trimmed.upper().startswith('INSERT INTO')
+        
+        if is_insert and 'RETURNING' not in trimmed.upper():
+            pg_sql_returning = trimmed.rstrip(';').rstrip() + ' RETURNING id;'
+            try:
+                self._cursor.execute(pg_sql_returning, params)
+                row = self._cursor.fetchone()
+                if row:
+                    if isinstance(row, dict):
+                        self.lastrowid = row.get('id')
+                    elif isinstance(row, (tuple, list)):
+                        self.lastrowid = row[0]
+                return self
+            except Exception:
+                self._cursor.execute(pg_sql, params)
+                self.lastrowid = None
+                return self
+        else:
+            self._cursor.execute(pg_sql, params)
+            self.lastrowid = None
+            return self
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def fetchmany(self, size=None):
+        return self._cursor.fetchmany(size) if size else self._cursor.fetchmany()
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    def close(self):
+        try:
+            self._cursor.close()
+        except Exception:
+            pass
+
+    def __iter__(self):
+        return iter(self._cursor)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
+class PGConnectionWrapper:
+    """Wraps a psycopg2 connection to mimic sqlite3.Connection methods (execute, commit, rollback, close, cursor)"""
+    def __init__(self, raw_conn):
+        self._conn = raw_conn
+
+    def cursor(self):
+        raw_cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        return PGCursorWrapper(raw_cur)
+
+    def execute(self, sql, params=None):
+        cur = self.cursor()
+        return cur.execute(sql, params)
+
+    def commit(self):
+        return self._conn.commit()
+
+    def rollback(self):
+        try:
+            return self._conn.rollback()
+        except Exception:
+            pass
+
+    def close(self):
+        try:
+            return self._conn.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self.rollback()
+        else:
+            self.commit()
+        self.close()
+
+
 def check_column_exists(conn, table_name, column_name):
     """Check if a column exists in a table using active connection"""
     c = conn.cursor()
@@ -440,9 +572,61 @@ def check_column_exists(conn, table_name, column_name):
     columns = [info[1] for info in c.fetchall()]
     return column_name in columns
 
+
 def init_db():
-    """Initialize SQLite database with proper schema migrations"""
-    db_path = app.config['DATABASE']
+    """Initialize database schema for PostgreSQL (Neon) or SQLite (Local/Fallback)"""
+    if app.config.get('DATABASE_TYPE') == 'postgres' and HAVE_PSYCOPG2:
+        try:
+            raw_conn = psycopg2.connect(app.config['DATABASE_URL'], connect_timeout=10)
+            raw_conn.autocommit = True
+            with raw_conn.cursor() as cur:
+                # Create users table
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        username VARCHAR(150) UNIQUE NOT NULL,
+                        email VARCHAR(255) UNIQUE NOT NULL,
+                        password_hash VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                ''')
+                # Create tickets table with all fields
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS tickets (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        ticket_text TEXT NOT NULL,
+                        predicted_category VARCHAR(100) NOT NULL,
+                        confidence REAL NOT NULL,
+                        status VARCHAR(50) DEFAULT 'Open',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        resolved_at TIMESTAMP NULL,
+                        resolved_by INTEGER NULL,
+                        resolution_notes TEXT NULL,
+                        notification_email VARCHAR(255),
+                        is_out_of_scope INTEGER DEFAULT 0,
+                        needs_human_review INTEGER DEFAULT 0,
+                        review_reason TEXT DEFAULT ''
+                    );
+                ''')
+                # Idempotent column migrations for Neon PostgreSQL
+                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS notification_email VARCHAR(255);')
+                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP NULL;')
+                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_by INTEGER NULL;')
+                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolution_notes TEXT NULL;')
+                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_out_of_scope INTEGER DEFAULT 0;')
+                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_human_review INTEGER DEFAULT 0;')
+                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review_reason TEXT DEFAULT \'\';')
+            raw_conn.close()
+            print("Neon PostgreSQL schema initialized successfully.")
+            return
+        except Exception as e:
+            print(f"Warning: Neon PostgreSQL init_db failed: {e}. Falling back to SQLite.")
+            app.config['DATABASE_TYPE'] = 'sqlite'
+            # Fall through to SQLite initialization
+
+    # SQLite schema initialization
+    db_path = app.config.get('DATABASE') or '/tmp/tickets.db'
     db_dir = os.path.dirname(db_path)
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
@@ -492,6 +676,8 @@ def init_db():
     
     conn.commit()
     conn.close()
+    print(f"SQLite schema initialized successfully at: {db_path}")
+
 
 _db_initialized = False
 
@@ -502,7 +688,9 @@ try:
 except Exception as _e:
     print(f"Notice: init_db on import: {_e}")
 
+
 def get_db():
+    """Get active database connection: PostgreSQL (Neon) if configured, else SQLite (Local/Fallback)"""
     global _db_initialized
     if not _db_initialized:
         try:
@@ -510,6 +698,19 @@ def get_db():
             _db_initialized = True
         except Exception as _e:
             print(f"Warning: on-demand init_db: {_e}")
+
+    if app.config.get('DATABASE_TYPE') == 'postgres' and HAVE_PSYCOPG2:
+        try:
+            raw_conn = psycopg2.connect(app.config['DATABASE_URL'], connect_timeout=10)
+            return PGConnectionWrapper(raw_conn)
+        except Exception as _pg_err:
+            print(f"PostgreSQL connection failed ({_pg_err}). Falling back to SQLite.")
+            app.config['DATABASE_TYPE'] = 'sqlite'
+            if not app.config.get('DATABASE'):
+                app.config['DATABASE'] = '/tmp/tickets.db'
+            init_db()
+            _db_initialized = True
+
     try:
         conn = sqlite3.connect(app.config['DATABASE'])
         conn.row_factory = sqlite3.Row
@@ -523,14 +724,20 @@ def get_db():
         conn.row_factory = sqlite3.Row
         return conn
 
+
 def row_to_dict(row):
-    """Convert SQLite Row object to dictionary"""
+    """Convert SQLite Row or psycopg2 RealDictRow to standard dictionary"""
     if row is None:
         return None
+    if isinstance(row, dict):
+        return dict(row)
     return {key: row[key] for key in row.keys()}
 
+
 def rows_to_dict_list(rows):
-    """Convert list of SQLite Row objects to list of dictionaries"""
+    """Convert list of Row objects to list of dictionaries"""
+    if not rows:
+        return []
     return [row_to_dict(row) for row in rows]
 
 def classify_ticket(text, return_top_k=False, return_structured=False):
@@ -648,9 +855,14 @@ def register():
             db.commit()
             db.close()
             return redirect(url_for('login'))
-        except sqlite3.IntegrityError:
+        except Exception as e:
+            err_msg = str(e).lower()
+            if hasattr(db, 'rollback'):
+                db.rollback()
             db.close()
-            return render_template('register.html', error='Username or email already exists')
+            if 'unique' in err_msg or 'duplicate' in err_msg or 'integrity' in err_msg:
+                return render_template('register.html', error='Username or email already exists')
+            return render_template('register.html', error=f'Registration failed: {str(e)}')
     
     return render_template('register.html')
 
