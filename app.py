@@ -7,7 +7,6 @@ import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-import sqlite3
 try:
     import psycopg2
     import psycopg2.extras
@@ -72,11 +71,10 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-123')
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-# Database Configuration: Neon PostgreSQL (Production/Cloud) with SQLite Local/Fallback
+# Database Configuration: Neon PostgreSQL
 RAW_DB_URL = os.getenv('DATABASE_URL') or os.getenv('POSTGRES_URL') or os.getenv('POSTGRES_PRISMA_URL')
-USE_POSTGRES = False
 
-if RAW_DB_URL and (RAW_DB_URL.startswith('postgres://') or RAW_DB_URL.startswith('postgresql://')):
+if RAW_DB_URL:
     # Fix postgres:// scheme for psycopg2 compatibility
     if RAW_DB_URL.startswith('postgres://'):
         RAW_DB_URL = RAW_DB_URL.replace('postgres://', 'postgresql://', 1)
@@ -84,22 +82,13 @@ if RAW_DB_URL and (RAW_DB_URL.startswith('postgres://') or RAW_DB_URL.startswith
     if 'sslmode' not in RAW_DB_URL:
         sep = '&' if '?' in RAW_DB_URL else '?'
         RAW_DB_URL = f"{RAW_DB_URL}{sep}sslmode=require"
-    USE_POSTGRES = True
     app.config['DATABASE_TYPE'] = 'postgres'
     app.config['DATABASE_URL'] = RAW_DB_URL
     print("Configured for Neon PostgreSQL database.")
 else:
-    app.config['DATABASE_TYPE'] = 'sqlite'
-    is_serverless = bool(
-        os.getenv('VERCEL') 
-        or os.getenv('AWS_LAMBDA_FUNCTION_NAME') 
-        or (os.path.exists('/tmp') and not os.access('.', os.W_OK))
-    )
-    if is_serverless:
-        app.config['DATABASE'] = '/tmp/tickets.db'
-    else:
-        app.config['DATABASE'] = os.getenv('DATABASE', 'tickets.db')
-    print(f"Configured for SQLite database at: {app.config['DATABASE']}")
+    app.config['DATABASE_TYPE'] = 'postgres'
+    app.config['DATABASE_URL'] = None
+    print("Warning: DATABASE_URL not set in environment. Set DATABASE_URL to your Neon connection string.")
 
 # Email configuration (loaded from .env)
 app.config['SMTP_SERVER'] = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
@@ -565,133 +554,78 @@ class PGConnectionWrapper:
         self.close()
 
 
-def check_column_exists(conn, table_name, column_name):
-    """Check if a column exists in a table using active connection"""
-    c = conn.cursor()
-    c.execute(f"PRAGMA table_info({table_name})")
-    columns = [info[1] for info in c.fetchall()]
-    return column_name in columns
-
-
 def init_db():
-    """Initialize database schema for PostgreSQL (Neon) or SQLite (Local/Fallback)"""
-    if app.config.get('DATABASE_TYPE') == 'postgres' and HAVE_PSYCOPG2:
-        try:
-            raw_conn = psycopg2.connect(app.config['DATABASE_URL'], connect_timeout=10)
-            raw_conn.autocommit = True
-            with raw_conn.cursor() as cur:
-                # Create users table
-                cur.execute('''
-                    CREATE TABLE IF NOT EXISTS users (
-                        id SERIAL PRIMARY KEY,
-                        username VARCHAR(150) UNIQUE NOT NULL,
-                        email VARCHAR(255) UNIQUE NOT NULL,
-                        password_hash VARCHAR(255) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                ''')
-                # Create tickets table with all fields
-                cur.execute('''
-                    CREATE TABLE IF NOT EXISTS tickets (
-                        id SERIAL PRIMARY KEY,
-                        user_id INTEGER NOT NULL,
-                        ticket_text TEXT NOT NULL,
-                        predicted_category VARCHAR(100) NOT NULL,
-                        confidence REAL NOT NULL,
-                        status VARCHAR(50) DEFAULT 'Open',
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        resolved_at TIMESTAMP NULL,
-                        resolved_by INTEGER NULL,
-                        resolution_notes TEXT NULL,
-                        notification_email VARCHAR(255),
-                        is_out_of_scope INTEGER DEFAULT 0,
-                        needs_human_review INTEGER DEFAULT 0,
-                        review_reason TEXT DEFAULT ''
-                    );
-                ''')
-                # Idempotent column migrations for Neon PostgreSQL
-                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS notification_email VARCHAR(255);')
-                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP NULL;')
-                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_by INTEGER NULL;')
-                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolution_notes TEXT NULL;')
-                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_out_of_scope INTEGER DEFAULT 0;')
-                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_human_review INTEGER DEFAULT 0;')
-                cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review_reason TEXT DEFAULT \'\';')
-            raw_conn.close()
-            print("Neon PostgreSQL schema initialized successfully.")
-            return
-        except Exception as e:
-            print(f"Warning: Neon PostgreSQL init_db failed: {e}. Falling back to SQLite.")
-            app.config['DATABASE_TYPE'] = 'sqlite'
-            # Fall through to SQLite initialization
+    """Initialize database schema for Neon PostgreSQL"""
+    if not HAVE_PSYCOPG2:
+        raise RuntimeError("psycopg2 is required for Neon PostgreSQL. Please install psycopg2-binary.")
+    
+    db_url = app.config.get('DATABASE_URL')
+    if not db_url:
+        print("Notice: DATABASE_URL not yet configured. Skipping init_db.")
+        return
 
-    # SQLite schema initialization
-    db_path = app.config.get('DATABASE') or '/tmp/tickets.db'
-    db_dir = os.path.dirname(db_path)
-    if db_dir:
-        os.makedirs(db_dir, exist_ok=True)
-
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    
-    # Create users table
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  username TEXT UNIQUE NOT NULL,
-                  email TEXT UNIQUE NOT NULL,
-                  password_hash TEXT NOT NULL,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    
-    # Create tickets table with all fields
-    c.execute('''CREATE TABLE IF NOT EXISTS tickets
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id INTEGER NOT NULL,
-                  ticket_text TEXT NOT NULL,
-                  predicted_category TEXT NOT NULL,
-                  confidence REAL NOT NULL,
-                  status TEXT DEFAULT 'Open',
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                  resolved_at TIMESTAMP NULL,
-                  resolved_by INTEGER NULL,
-                  resolution_notes TEXT NULL,
-                  notification_email TEXT,
-                  is_out_of_scope INTEGER DEFAULT 0,
-                  needs_human_review INTEGER DEFAULT 0,
-                  review_reason TEXT DEFAULT "",
-                  FOREIGN KEY (user_id) REFERENCES users (id))''')
-    
-    # Schema migration checks for existing databases
-    if not check_column_exists(conn, 'tickets', 'notification_email'):
-        c.execute('ALTER TABLE tickets ADD COLUMN notification_email TEXT')
-    if not check_column_exists(conn, 'tickets', 'resolved_at'):
-        c.execute('ALTER TABLE tickets ADD COLUMN resolved_at TIMESTAMP NULL')
-        c.execute('ALTER TABLE tickets ADD COLUMN resolved_by INTEGER NULL')
-        c.execute('ALTER TABLE tickets ADD COLUMN resolution_notes TEXT NULL')
-    if not check_column_exists(conn, 'tickets', 'is_out_of_scope'):
-        c.execute('ALTER TABLE tickets ADD COLUMN is_out_of_scope INTEGER DEFAULT 0')
-    if not check_column_exists(conn, 'tickets', 'needs_human_review'):
-        c.execute('ALTER TABLE tickets ADD COLUMN needs_human_review INTEGER DEFAULT 0')
-    if not check_column_exists(conn, 'tickets', 'review_reason'):
-        c.execute('ALTER TABLE tickets ADD COLUMN review_reason TEXT DEFAULT ""')
-    
-    conn.commit()
-    conn.close()
-    print(f"SQLite schema initialized successfully at: {db_path}")
+    raw_conn = psycopg2.connect(db_url, connect_timeout=10)
+    raw_conn.autocommit = True
+    with raw_conn.cursor() as cur:
+        # Create users table
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(150) UNIQUE NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        # Create tickets table with all fields
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS tickets (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                ticket_text TEXT NOT NULL,
+                predicted_category VARCHAR(100) NOT NULL,
+                confidence REAL NOT NULL,
+                status VARCHAR(50) DEFAULT 'Open',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP NULL,
+                resolved_by INTEGER NULL,
+                resolution_notes TEXT NULL,
+                notification_email VARCHAR(255),
+                is_out_of_scope INTEGER DEFAULT 0,
+                needs_human_review INTEGER DEFAULT 0,
+                review_reason TEXT DEFAULT ''
+            );
+        ''')
+        # Idempotent column migrations for Neon PostgreSQL
+        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS notification_email VARCHAR(255);')
+        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP NULL;')
+        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_by INTEGER NULL;')
+        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolution_notes TEXT NULL;')
+        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_out_of_scope INTEGER DEFAULT 0;')
+        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_human_review INTEGER DEFAULT 0;')
+        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review_reason TEXT DEFAULT \'\';')
+    raw_conn.close()
+    print("Neon PostgreSQL schema initialized successfully.")
 
 
 _db_initialized = False
 
-# Ensure database is initialized on import
+# Ensure database is initialized on import if configured
 try:
-    init_db()
-    _db_initialized = True
+    if app.config.get('DATABASE_URL'):
+        init_db()
+        _db_initialized = True
 except Exception as _e:
     print(f"Notice: init_db on import: {_e}")
 
 
 def get_db():
-    """Get active database connection: PostgreSQL (Neon) if configured, else SQLite (Local/Fallback)"""
+    """Get active database connection for Neon PostgreSQL"""
     global _db_initialized
+    db_url = app.config.get('DATABASE_URL')
+    if not db_url:
+        raise RuntimeError("DATABASE_URL is not set. Please set DATABASE_URL in your .env or environment.")
+
     if not _db_initialized:
         try:
             init_db()
@@ -699,30 +633,8 @@ def get_db():
         except Exception as _e:
             print(f"Warning: on-demand init_db: {_e}")
 
-    if app.config.get('DATABASE_TYPE') == 'postgres' and HAVE_PSYCOPG2:
-        try:
-            raw_conn = psycopg2.connect(app.config['DATABASE_URL'], connect_timeout=10)
-            return PGConnectionWrapper(raw_conn)
-        except Exception as _pg_err:
-            print(f"PostgreSQL connection failed ({_pg_err}). Falling back to SQLite.")
-            app.config['DATABASE_TYPE'] = 'sqlite'
-            if not app.config.get('DATABASE'):
-                app.config['DATABASE'] = '/tmp/tickets.db'
-            init_db()
-            _db_initialized = True
-
-    try:
-        conn = sqlite3.connect(app.config['DATABASE'])
-        conn.row_factory = sqlite3.Row
-        return conn
-    except Exception as _err:
-        print(f"Database error with {app.config.get('DATABASE')}: {_err}. Falling back to /tmp/tickets.db")
-        app.config['DATABASE'] = '/tmp/tickets.db'
-        init_db()
-        _db_initialized = True
-        conn = sqlite3.connect('/tmp/tickets.db')
-        conn.row_factory = sqlite3.Row
-        return conn
+    raw_conn = psycopg2.connect(db_url, connect_timeout=10)
+    return PGConnectionWrapper(raw_conn)
 
 
 def row_to_dict(row):

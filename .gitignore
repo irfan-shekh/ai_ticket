@@ -19,6 +19,7 @@ __pycache__/
 # SQLite Database (contains local user accounts & tickets)
 *.db
 *.sqlite3
+*.migrated
 
 # Operating System & IDE
 .DS_Store

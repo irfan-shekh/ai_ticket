@@ -4,7 +4,7 @@
 ![Flask](https://img.shields.io/badge/Flask-3.x-black?style=for-the-badge&logo=flask)
 ![Scikit--Learn](https://img.shields.io/badge/scikit--learn-1.7%2B-orange?style=for-the-badge&logo=scikit-learn)
 ![NLTK](https://img.shields.io/badge/NLTK-NLP-green?style=for-the-badge)
-![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=for-the-badge&logo=sqlite)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon%20Serverless-336791?style=for-the-badge&logo=postgresql)
 [![Vercel](https://img.shields.io/badge/Vercel-Live%20Demo-black?style=for-the-badge&logo=vercel)](https://ticketai-seven.vercel.app)
 ![Status](https://img.shields.io/badge/Status-Production--Audited-success?style=for-the-badge)
 
@@ -59,7 +59,7 @@ graph TD
     SVC -->|5. Probability Distribution| Triage[Triage Decision Layer<br/>Confidence + Margin + Domain Lexicon]
     Triage -->|OOS / Ambiguous| HumanReview[Flag: Needs Human Review<br/>is_out_of_scope = True]
     Triage -->|In-Scope & Confident| AutoRoute[Auto-Routed to Category]
-    AutoRoute & HumanReview -->|6. Store Record| DB[(PostgreSQL Database<br/>Neon Cloud / SQLite Fallback)]
+    AutoRoute & HumanReview -->|6. Store Record| DB[(Neon PostgreSQL Database<br/>Serverless Cloud)]
     AutoRoute -->|7. Confirmation Email| SMTP[SMTP Service]
 ```
 
@@ -67,12 +67,11 @@ graph TD
 
 ## ☁️ Cloud & Serverless Deployment Architecture (Vercel & Neon)
 
-TicketAI runs natively as a zero-configuration serverless web application on **Vercel** backed by **Neon PostgreSQL**:
+TicketAI runs natively as a serverless web application on **Vercel** backed by **Neon PostgreSQL**:
 
 | Component | Cloud / Serverless Implementation | Benefit |
 | :--- | :--- | :--- |
-| **Database (Production)** | **Neon Serverless PostgreSQL** via `DATABASE_URL` | Persistent user accounts, tickets, and resolutions across all serverless cold starts & regional edges |
-| **Database (Fallback)** | Self-healing SQLite (`tickets.db` / `/tmp/tickets.db`) | Automatic offline fallback for local tests and zero-dependency development |
+| **Database** | **Neon Serverless PostgreSQL** via `DATABASE_URL` | Persistent user accounts, tickets, and resolutions across all serverless cold starts & regional edges |
 | **Routing** | Zero-Config Native Flask Framework Preset via `app.py` | Eliminates complex rewrite conflicts; full client route fidelity |
 | **Static Assets** | Global Edge CDN via `public/static/` | Instant 0ms asset loading, global browser caching, correct MIME types |
 | **Filesystem Safety**| NLTK cached to `/tmp/nltk_data` with offline graceful fallbacks | Prevents Lambda read-only filesystem crashes (`[Errno 30]`) |
@@ -89,8 +88,8 @@ TicketAI runs natively as a zero-configuration serverless web application on **V
    - Go to your Vercel project: **Settings -> Environment Variables**.
    - Add **`DATABASE_URL`** (or `POSTGRES_URL`) and paste your Neon connection string.
    - Click **Save**.
-4. **Local Development (Optional)**:
-   - Add `DATABASE_URL=...` to your `.env` file to share the exact same database between local development and production. If omitted, TicketAI seamlessly defaults to local `tickets.db`.
+4. **Local Development**:
+   - Add `DATABASE_URL=...` to your `.env` file to connect to Neon PostgreSQL.
 
 ---
 
@@ -212,7 +211,6 @@ In customer support, a single message may contain multiple intents (e.g., *"My a
 ai_ticket/
 ├── app.py                                        # Production Flask web application & REST API
 ├── requirements.txt                              # Streamlined production package dependencies
-├── tickets.db                                    # Active SQLite database (local dev)
 ├── download.py                                   # NLTK corpora setup script
 ├── public/                                       # Vercel Global Edge CDN static assets
 │   └── static/
