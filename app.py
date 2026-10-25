@@ -66,19 +66,25 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Database configuration (support serverless environments like Vercel / AWS Lambda)
-default_db = 'tickets.db'
-if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME') or (os.path.exists('/tmp') and not os.access('.', os.W_OK)):
-    tmp_db = '/tmp/tickets.db'
+# On serverless platforms (/var/task is read-only), SQLite must always use /tmp/tickets.db.
+is_serverless = bool(
+    os.getenv('VERCEL') 
+    or os.getenv('AWS_LAMBDA_FUNCTION_NAME') 
+    or (os.path.exists('/tmp') and not os.access('.', os.W_OK))
+)
+
+if is_serverless:
+    target_db = '/tmp/tickets.db'
     repo_db = os.path.join(os.path.dirname(__file__), 'tickets.db')
-    if not os.path.exists(tmp_db) and os.path.exists(repo_db):
+    if not os.path.exists(target_db) and os.path.exists(repo_db):
         try:
             import shutil
-            shutil.copyfile(repo_db, tmp_db)
+            shutil.copyfile(repo_db, target_db)
         except Exception as _e:
             print(f"Notice: Could not copy initial db to /tmp: {_e}")
-    default_db = tmp_db
-
-app.config['DATABASE'] = os.getenv('DATABASE', default_db)
+    app.config['DATABASE'] = target_db
+else:
+    app.config['DATABASE'] = os.getenv('DATABASE', 'tickets.db')
 
 # Email configuration (loaded from .env)
 app.config['SMTP_SERVER'] = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
@@ -504,9 +510,18 @@ def get_db():
             _db_initialized = True
         except Exception as _e:
             print(f"Warning: on-demand init_db: {_e}")
-    conn = sqlite3.connect(app.config['DATABASE'])
-    conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        conn = sqlite3.connect(app.config['DATABASE'])
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception as _err:
+        print(f"Database error with {app.config.get('DATABASE')}: {_err}. Falling back to /tmp/tickets.db")
+        app.config['DATABASE'] = '/tmp/tickets.db'
+        init_db()
+        _db_initialized = True
+        conn = sqlite3.connect('/tmp/tickets.db')
+        conn.row_factory = sqlite3.Row
+        return conn
 
 def row_to_dict(row):
     """Convert SQLite Row object to dictionary"""
