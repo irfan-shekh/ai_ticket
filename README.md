@@ -5,9 +5,13 @@
 ![Scikit--Learn](https://img.shields.io/badge/scikit--learn-1.7%2B-orange?style=for-the-badge&logo=scikit-learn)
 ![NLTK](https://img.shields.io/badge/NLTK-NLP-green?style=for-the-badge)
 ![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=for-the-badge&logo=sqlite)
+[![Vercel](https://img.shields.io/badge/Vercel-Live%20Demo-black?style=for-the-badge&logo=vercel)](https://ticketai-seven.vercel.app)
 ![Status](https://img.shields.io/badge/Status-Production--Audited-success?style=for-the-badge)
 
-**TicketAI** is an AI-powered customer support ticketing and automated triage platform. It combines a calibrated, dual-granularity TF-IDF + LinearSVC pipeline with a transparent out-of-scope (OOS) triage decision layer in a full-stack Flask web application. The platform categorizes incoming customer inquiries into 5 core operational domains, filters unrelated non-customer noise, flags ambiguous inputs for human agent review, and delivers sub-15 millisecond response times.
+**TicketAI** is an AI-powered customer support ticketing and automated triage platform. It combines a calibrated, dual-granularity TF-IDF + LinearSVC pipeline with a transparent out-of-scope (OOS) triage decision layer in a full-stack Flask web application deployed to Vercel Serverless. The platform categorizes incoming customer inquiries into 5 core operational domains, filters unrelated non-customer noise, flags ambiguous inputs for human agent review, and delivers sub-15 millisecond response times.
+
+* **Live Demo**: [https://ticketai-seven.vercel.app](https://ticketai-seven.vercel.app)
+* **Default Admin Account**: `admin` / `admin123`
 
 ---
 
@@ -40,6 +44,7 @@
 * **Agent & Admin Console**: Role-Based Access Control (RBAC), multi-attribute ticket filtering, real-time KPI metrics, ticket resolution workflow with customer email dispatch.
 * **Theming**: Dark & Light mode toggle powered by CSS custom properties and persistent browser state.
 * **Transactional Email**: Automated HTML confirmations and resolution notifications sent via SMTP.
+* **Serverless Cloud Ready**: Built-in Vercel serverless runtime adaptation with ephemeral writable storage, resilient on-demand SQLite auto-initialization, and Edge CDN static asset delivery.
 
 ---
 
@@ -54,9 +59,23 @@ graph TD
     SVC -->|5. Probability Distribution| Triage[Triage Decision Layer<br/>Confidence + Margin + Domain Lexicon]
     Triage -->|OOS / Ambiguous| HumanReview[Flag: Needs Human Review<br/>is_out_of_scope = True]
     Triage -->|In-Scope & Confident| AutoRoute[Auto-Routed to Category]
-    AutoRoute & HumanReview -->|6. Store Record| DB[(SQLite Database<br/>tickets.db)]
+    AutoRoute & HumanReview -->|6. Store Record| DB[(SQLite Database<br/>tickets.db / /tmp)]
     AutoRoute -->|7. Confirmation Email| SMTP[SMTP Service]
 ```
+
+---
+
+## ☁️ Cloud & Serverless Deployment Architecture (Vercel)
+
+TicketAI runs natively as a zero-configuration serverless web application on **Vercel** with the following production architecture:
+
+| Component | Cloud / Serverless Implementation | Benefit |
+| :--- | :--- | :--- |
+| **Routing** | Zero-Config Native Flask Framework Preset via `app.py` | Eliminates complex rewrite conflicts; full client route fidelity |
+| **Static Assets** | Global Edge CDN via `public/static/` | Instant 0ms asset loading, global browser caching, correct MIME types |
+| **Filesystem Safety**| NLTK cached to `/tmp/nltk_data` with offline graceful fallbacks | Prevents Lambda read-only filesystem crashes (`[Errno 30]`) |
+| **Database** | Self-healing on-demand schema setup in `/tmp/tickets.db` | Automatic table generation on cold starts; zero downtime |
+| **Reverse Proxy** | Werkzeug `ProxyFix(x_for=1, x_proto=1, x_host=1, x_prefix=1)` | Correct HTTPS scheme detection and URL generation |
 
 ---
 
@@ -160,7 +179,6 @@ We evaluated three architectural configurations across two distinct benchmarks:
 > * **Severe Latency Penalty**: Mean inference latency increases by **19.2×** (from 3.67 ms to 70.64 ms on CPU, with p95 reaching 155.59 ms across 400 standardized pre-warmed runs).
 > * **Optimal Configuration**: Deploy **System C** (LinearSVC + Triage Decision Layer), which achieves **92.5%–96.0% ticket accuracy**, **14.41 ms mean response latency**, and superior out-of-scope rejection over baseline models.
 
-
 ---
 
 ## 🧩 Compound Ticket Handling (Multi-Intent)
@@ -171,7 +189,6 @@ In customer support, a single message may contain multiple intents (e.g., *"My a
 * **Secondary Intent Visibility**: The system computes and returns the top-3 ranked candidate classes with calibrated posterior probabilities and the classification margin $\Delta$.
 * **Honest Evaluation Note**: Top-3 ranked single-label predictions represent uncertainty ranking, **not** verified multi-label classification. If true multi-label classification is required in the future, it should be trained and evaluated against a multi-label annotated benchmark with binary cross-entropy or MultiOutputClassifier.
 
-
 ---
 
 ## 📁 Repository Structure
@@ -179,9 +196,16 @@ In customer support, a single message may contain multiple intents (e.g., *"My a
 ```text
 ai_ticket/
 ├── app.py                                        # Production Flask web application & REST API
-├── requirements.txt                              # Python package dependencies
-├── tickets.db                                    # Active SQLite database
+├── requirements.txt                              # Streamlined production package dependencies
+├── tickets.db                                    # Active SQLite database (local dev)
 ├── download.py                                   # NLTK corpora setup script
+├── public/                                       # Vercel Global Edge CDN static assets
+│   └── static/
+│       ├── css/theme.css                         # Dark/Light theme design system
+│       └── js/theme.js                           # Theme switcher & local storage persistence
+├── static/                                       # Flask static directory (fallback)
+│   ├── css/theme.css
+│   └── js/theme.js
 ├── models/                                       # Models, datasets & evaluation scripts
 │   ├── train.csv                                 # 42,000-row training partition (with noise/typos)
 │   ├── test.csv                                  # 18,000-row held-out test partition (with noise/typos)
@@ -195,13 +219,13 @@ ai_ticket/
 │   ├── enhanced_model_metadata.json              # Model hyperparameters, vocabulary size & metadata
 │   └── ticket_classification_updated.ipynb       # Interactive notebook for EDA and validation
 ├── tests/                                        # Automated unit & integration tests
-│   └── test_pipeline.py                          # 12 automated test cases (valid, OOS, edge cases)
-├── templates/                                    # Jinja2 HTML templates
-│   ├── landing.html                              # Public landing page
-│   ├── index.html                                # Customer ticket submission with live AI preview
-│   ├── dashboard.html                            # User dashboard and ticket history
-│   └── admin_dashboard.html                      # Administrative triage, filtering & resolution portal
-└── static/                                       # CSS, JS, and UI design assets
+│   └── test_pipeline.py                          # 17 automated test cases (valid, OOS, edge cases)
+└── templates/                                    # Jinja2 HTML templates
+    ├── landing.html                              # High-converting public landing page
+    ├── login.html                                # Customer & admin authentication portal
+    ├── register.html                             # Customer account onboarding portal
+    ├── dashboard.html                            # Customer self-service ticket dashboard
+    └── admin_dashboard.html                      # Administrative triage, filtering & resolution portal
 ```
 
 ---
@@ -238,9 +262,9 @@ cp .env.example .env
 
 ## 🧪 Reproducible Commands
 
-### Run Automated Unit Tests (15 Test Cases & Endpoint Validations)
+### Run Automated Unit Tests (17 Test Cases & Endpoint Validations)
 ```bash
-python -m unittest tests/test_pipeline.py
+python tests/test_pipeline.py
 ```
 
 ### Run Dataset Leakage & Template Audit
@@ -263,7 +287,7 @@ python models/independent_stress_test.py
 python models/train_model.py
 ```
 
-### Start the Flask Application
+### Start the Flask Application Locally
 ```bash
 python app.py
 ```
@@ -386,5 +410,3 @@ TicketAI — AI-Powered Customer Support Classification & Triage
 
 ## 📄 License
 This project is licensed under the MIT License.
-
-
