@@ -63,26 +63,6 @@ app = Flask(
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-123')
 
 from werkzeug.middleware.proxy_fix import ProxyFix
-
-class VercelPathFixMiddleware:
-    """Restores original client requested path when Vercel rewrites to /api/index or /app.py"""
-    def __init__(self, wsgi_app):
-        self.wsgi_app = wsgi_app
-
-    def __call__(self, environ, start_response):
-        matched = environ.get('HTTP_X_MATCHED_PATH') or environ.get('HTTP_X_FORWARDED_URI')
-        if matched:
-            environ['PATH_INFO'] = matched.split('?')[0]
-        else:
-            path_info = environ.get('PATH_INFO', '')
-            if path_info.startswith('/api/index'):
-                remainder = path_info[len('/api/index'):]
-                environ['PATH_INFO'] = remainder if remainder.startswith('/') else ('/' + remainder)
-            elif path_info == '/app.py':
-                environ['PATH_INFO'] = '/'
-        return self.wsgi_app(environ, start_response)
-
-app.wsgi_app = VercelPathFixMiddleware(app.wsgi_app)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Database configuration (support serverless environments like Vercel / AWS Lambda)
@@ -447,21 +427,21 @@ def send_ticket_resolution_email(to_email, ticket_id, category, ticket_text, res
     subject = f"TicketAI - Your Ticket #{ticket_id} has been Resolved"
     return send_email(to_email, subject, html_body)
 
-def check_column_exists(table_name, column_name):
-    """Check if a column exists in a table"""
-    conn = sqlite3.connect(app.config['DATABASE'])
+def check_column_exists(conn, table_name, column_name):
+    """Check if a column exists in a table using active connection"""
     c = conn.cursor()
-    
-    # Get table info
     c.execute(f"PRAGMA table_info({table_name})")
     columns = [info[1] for info in c.fetchall()]
-    
-    conn.close()
     return column_name in columns
 
 def init_db():
-    """Initialize SQLite database with proper migration handling"""
-    conn = sqlite3.connect(app.config['DATABASE'])
+    """Initialize SQLite database with proper schema migrations"""
+    db_path = app.config['DATABASE']
+    db_dir = os.path.dirname(db_path)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+
+    conn = sqlite3.connect(db_path)
     c = conn.cursor()
     
     # Create users table
@@ -472,7 +452,7 @@ def init_db():
                   password_hash TEXT NOT NULL,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Create tickets table with additional admin fields
+    # Create tickets table with all fields
     c.execute('''CREATE TABLE IF NOT EXISTS tickets
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id INTEGER NOT NULL,
@@ -485,41 +465,45 @@ def init_db():
                   resolved_by INTEGER NULL,
                   resolution_notes TEXT NULL,
                   notification_email TEXT,
+                  is_out_of_scope INTEGER DEFAULT 0,
+                  needs_human_review INTEGER DEFAULT 0,
+                  review_reason TEXT DEFAULT "",
                   FOREIGN KEY (user_id) REFERENCES users (id))''')
     
-    # Check if notification_email column exists, if not add it
-    if not check_column_exists('tickets', 'notification_email'):
-        print("Adding notification_email column to tickets table...")
+    # Schema migration checks for existing databases
+    if not check_column_exists(conn, 'tickets', 'notification_email'):
         c.execute('ALTER TABLE tickets ADD COLUMN notification_email TEXT')
-    
-    # Check if admin columns exist, if not add them
-    if not check_column_exists('tickets', 'resolved_at'):
-        print("Adding admin columns to tickets table...")
+    if not check_column_exists(conn, 'tickets', 'resolved_at'):
         c.execute('ALTER TABLE tickets ADD COLUMN resolved_at TIMESTAMP NULL')
         c.execute('ALTER TABLE tickets ADD COLUMN resolved_by INTEGER NULL')
         c.execute('ALTER TABLE tickets ADD COLUMN resolution_notes TEXT NULL')
-    
-    # Check if triage columns exist, if not add them
-    if not check_column_exists('tickets', 'is_out_of_scope'):
-        print("Adding is_out_of_scope column to tickets table...")
+    if not check_column_exists(conn, 'tickets', 'is_out_of_scope'):
         c.execute('ALTER TABLE tickets ADD COLUMN is_out_of_scope INTEGER DEFAULT 0')
-    if not check_column_exists('tickets', 'needs_human_review'):
-        print("Adding needs_human_review column to tickets table...")
+    if not check_column_exists(conn, 'tickets', 'needs_human_review'):
         c.execute('ALTER TABLE tickets ADD COLUMN needs_human_review INTEGER DEFAULT 0')
-    if not check_column_exists('tickets', 'review_reason'):
-        print("Adding review_reason column to tickets table...")
+    if not check_column_exists(conn, 'tickets', 'review_reason'):
         c.execute('ALTER TABLE tickets ADD COLUMN review_reason TEXT DEFAULT ""')
     
     conn.commit()
     conn.close()
 
+_db_initialized = False
+
 # Ensure database is initialized on import
 try:
     init_db()
+    _db_initialized = True
 except Exception as _e:
-    print(f"Warning: init_db on import failed: {_e}")
+    print(f"Notice: init_db on import: {_e}")
 
 def get_db():
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_db()
+            _db_initialized = True
+        except Exception as _e:
+            print(f"Warning: on-demand init_db: {_e}")
     conn = sqlite3.connect(app.config['DATABASE'])
     conn.row_factory = sqlite3.Row
     return conn
@@ -576,8 +560,8 @@ def classify_ticket(text, return_top_k=False, return_structured=False):
         return fallback_cat, 50.0
 
 
+
 @app.route('/')
-@app.route('/api/index')
 def index():
     """Landing page - show to unauthenticated users"""
     if 'user_id' in session:
