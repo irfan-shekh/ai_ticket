@@ -337,7 +337,7 @@ python app.py
 ```
 Open [http://localhost:5000](http://localhost:5000) in your browser:
 - **Customer Portal**: Register an account or log in to submit tickets and view resolution tracking.
-- **Admin Console**: Log in with `admin` / `admin123` to view real-time triage analytics and manage knowledge base documents.
+- **Admin Console**: Log in with your configured `ADMIN_USERNAME` and `ADMIN_PASSWORD` (set in `.env` / deployment environment variables) to view real-time triage analytics and manage knowledge base documents.
 
 ---
 

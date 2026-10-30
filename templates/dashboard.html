@@ -583,6 +583,14 @@
                                                 </span>
                                             </div>
 
+                                            {% if ticket.status == 'Resolved' or ticket.status == 'awaiting_customer' %}
+                                            <div class="mt-2">
+                                                <button class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size: 0.75rem;" onclick="customerReopenTicket('{{ ticket.id }}')">
+                                                    <i class="fas fa-undo me-1"></i> Reopen Ticket
+                                                </button>
+                                            </div>
+                                            {% endif %}
+
                                             <div class="mt-2" style="max-width: 160px; margin-left: auto;">
                                                 <div class="d-flex justify-content-between small text-muted">
                                                     <span>Confidence</span>
@@ -1008,6 +1016,26 @@
                 console.error(err);
                 alert('Could not record feedback');
             });
+        }
+
+        function customerReopenTicket(ticketId) {
+            const reason = prompt('Please explain why the issue is not resolved:', 'The previous solution did not fix the problem.');
+            if (reason === null) return;
+            fetch('/api/ticket/' + ticketId + '/reopen', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
         }
     </script>
 </body>

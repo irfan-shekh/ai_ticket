@@ -287,6 +287,19 @@ class DatabaseManager:
             cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_out_of_scope INTEGER DEFAULT 0;")
             cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_human_review INTEGER DEFAULT 0;")
             cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review_reason TEXT DEFAULT '';")
+            cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'Medium';")
+            cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolution_method VARCHAR(20) NULL;")
+            cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS subject VARCHAR(255) DEFAULT '';")
+
+            # Idempotent ticket_resolutions columns
+            cur.execute("ALTER TABLE ticket_resolutions ADD COLUMN IF NOT EXISTS resolution_method VARCHAR(20) DEFAULT 'AI';")
+            cur.execute("ALTER TABLE ticket_resolutions ADD COLUMN IF NOT EXISTS admin_id INTEGER NULL;")
+            cur.execute("ALTER TABLE ticket_resolutions ADD COLUMN IF NOT EXISTS internal_notes TEXT DEFAULT '';")
+            cur.execute("ALTER TABLE ticket_resolutions ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP NULL;")
+
+            # Idempotent ticket_events columns
+            cur.execute("ALTER TABLE ticket_events ADD COLUMN IF NOT EXISTS admin_id INTEGER NULL;")
+            cur.execute("ALTER TABLE ticket_events ADD COLUMN IF NOT EXISTS event_type VARCHAR(50) DEFAULT 'STATUS_CHANGE';")
 
             # 4. Knowledge Documents table
             cur.execute("""
@@ -380,6 +393,7 @@ class DatabaseManager:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_kb_doc_active ON knowledge_documents(is_active);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_kb_chunks_doc_id ON knowledge_chunks(document_id);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ticket_res_ticket_id ON ticket_resolutions(ticket_id);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ticket_res_method ON ticket_resolutions(resolution_method);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ticket_events_ticket_id ON ticket_events(ticket_id);")
 
             # Try creating ivfflat or HNSW vector index if enough rows or supported

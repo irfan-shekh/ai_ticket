@@ -33,6 +33,9 @@ from src.database.repositories import KnowledgeRepository, TicketRepository
 from src.rag.kb_manager import KnowledgeBaseManager
 from src.rag.retriever import Retriever
 from src.services.ticket_orchestrator import TicketOrchestrator
+import logging
+
+logger = logging.getLogger("ticketai.app")
 
 # Load environment variables from .env file (with built-in zero-dependency fallback)
 try:
@@ -745,15 +748,16 @@ def dashboard():
 
 @app.route('/admin')
 def admin_dashboard():
-    """Admin dashboard to view and manage all tickets"""
+    """Admin dashboard to view and manage all tickets with AI & Manual resolution options"""
     if 'user_id' not in session or not session.get('is_admin'):
         return redirect(url_for('login'))
     
-    db = get_db()
-    
-    # Get filter parameters
+    # Get filter and search parameters
     status_filter = request.args.get('status', 'all')
     category_filter = request.args.get('category', 'all')
+    priority_filter = request.args.get('priority', 'all')
+    method_filter = request.args.get('method', 'all')
+    search_query = request.args.get('search', '').strip()
     
     # Build query based on filters
     query = '''
@@ -765,52 +769,74 @@ def admin_dashboard():
     params = []
     
     if status_filter != 'all':
-        query += ' AND t.status = ?'
-        params.append(status_filter)
+        if status_filter in ['pending_review', 'needs_review']:
+            query += " AND (t.status = 'needs_review' OR t.needs_human_review = 1)"
+        elif status_filter == 'escalated':
+            query += " AND (t.status = 'escalated' OR t.status = 'needs_review')"
+        elif status_filter == 'ai_suggested':
+            query += " AND (t.status = 'awaiting_customer' AND (t.resolution_method = 'AI' OR t.resolution_method IS NULL))"
+        else:
+            query += ' AND t.status = %s'
+            params.append(status_filter)
     
     if category_filter != 'all':
-        query += ' AND t.predicted_category = ?'
+        query += ' AND t.predicted_category = %s'
         params.append(category_filter)
+
+    if priority_filter != 'all':
+        query += ' AND t.priority = %s'
+        params.append(priority_filter)
+
+    if method_filter != 'all':
+        if method_filter.upper() == 'AI':
+            query += " AND (t.resolution_method = 'AI' OR (t.resolution_method IS NULL AND t.status = 'awaiting_customer'))"
+        elif method_filter.upper() == 'MANUAL':
+            query += " AND t.resolution_method = 'MANUAL'"
+
+    if search_query:
+        if search_query.isdigit():
+            query += ' AND (t.id = %s OR t.ticket_text ILIKE %s OR u.username ILIKE %s)'
+            params.extend([int(search_query), f'%{search_query}%', f'%{search_query}%'])
+        else:
+            query += ' AND (t.ticket_text ILIKE %s OR u.username ILIKE %s OR COALESCE(t.subject, \'\') ILIKE %s)'
+            params.extend([f'%{search_query}%', f'%{search_query}%', f'%{search_query}%'])
     
     query += ' ORDER BY t.created_at DESC'
     
-    tickets = db.execute(query, params).fetchall()
-    
-    # Get statistics
-    stats = db.execute('''
-        SELECT 
-            COUNT(*) as total,
-            SUM(CASE WHEN status = 'Open' THEN 1 ELSE 0 END) as open,
-            SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-            SUM(CASE WHEN status = 'awaiting_customer' THEN 1 ELSE 0 END) as awaiting_customer,
-            SUM(CASE WHEN status = 'needs_review' OR needs_human_review = 1 THEN 1 ELSE 0 END) as escalated,
-            predicted_category,
-            COUNT(*) as category_count
-        FROM tickets 
-        GROUP BY predicted_category
-    ''').fetchall()
-    
-    db.close()
-    
-    tickets_dict = rows_to_dict_list(tickets)
-    stats_dict = rows_to_dict_list(stats)
+    with get_db() as db:
+        tickets = db.execute(query, tuple(params)).fetchall()
+        tickets_dict = [dict(t) for t in tickets] if tickets else []
+        
+        # Load KB documents for Knowledge Base Manager tab
+        kb_docs = KnowledgeRepository.list_documents(active_only=False)
+        for doc in kb_docs:
+            doc['chunk_count'] = KnowledgeRepository.get_document_chunk_count(doc['id'])
 
-    # Attach latest AI resolutions and feedback to tickets
+    # Attach latest AI/Manual resolutions and events to tickets
     for t in tickets_dict:
         t['resolution'] = TicketRepository.get_latest_resolution(t['id'])
+        t['events'] = TicketRepository.get_events(t['id'])
+        # Default priority if empty
+        if not t.get('priority'):
+            t['priority'] = 'High' if t.get('needs_human_review') or float(t.get('confidence', 100)) < 60.0 else 'Medium'
     
-    # Load KB documents for Knowledge Base Manager tab
-    kb_docs = KnowledgeRepository.list_documents(active_only=False)
-    for doc in kb_docs:
-        doc['chunk_count'] = KnowledgeRepository.get_document_chunk_count(doc['id'])
+    # Calculate live production analytics directly from NeonDB
+    metrics = TicketRepository.get_admin_metrics()
+    resolution_history = TicketRepository.list_resolution_history(limit=50)
 
-    return render_template('admin_dashboard.html', 
-                         tickets=tickets_dict,
-                         stats=stats_dict,
-                         kb_documents=kb_docs,
-                         categories=category_descriptions,
-                         status_filter=status_filter,
-                         category_filter=category_filter)
+    return render_template(
+        'admin_dashboard.html', 
+        tickets=tickets_dict,
+        metrics=metrics,
+        resolution_history=resolution_history,
+        kb_documents=kb_docs,
+        categories=category_descriptions,
+        status_filter=status_filter,
+        category_filter=category_filter,
+        priority_filter=priority_filter,
+        method_filter=method_filter,
+        search_query=search_query
+    )
 
 @app.route('/classify_preview', methods=['POST'])
 def classify_preview_route():
@@ -944,77 +970,253 @@ def batch_classify_route():
     except Exception as e:
         return jsonify({'error': f'Batch classification error: {str(e)}'}), 500
 
+@app.route('/admin/resolve_manual', methods=['POST'])
+def resolve_ticket_manually():
+    """Admin route for submitting manual resolution to customer (Status -> awaiting_customer)"""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized: Admin access required'}), 401
+    
+    try:
+        data = request.get_json() or {}
+        ticket_id = data.get('ticket_id')
+        summary = str(data.get('summary', '')).strip()
+        detailed_solution = str(data.get('detailed_solution', '') or data.get('resolution_notes', '')).strip()
+        internal_notes = str(data.get('internal_notes', '')).strip()
+        resolution_category = str(data.get('resolution_category', '')).strip()
+        
+        if not ticket_id:
+            return jsonify({'error': 'Ticket ID is required'}), 400
+        if not summary:
+            summary = "Admin Manual Resolution"
+        if not detailed_solution:
+            return jsonify({'error': 'Detailed solution is required'}), 400
+            
+        ticket = TicketRepository.get_ticket(ticket_id)
+        if not ticket:
+            return jsonify({'error': f'Ticket #{ticket_id} not found'}), 404
+            
+        admin_id = session['user_id']
+        res_id = TicketRepository.save_manual_resolution(
+            ticket_id=ticket_id,
+            admin_id=admin_id,
+            summary=summary,
+            detailed_solution=detailed_solution,
+            internal_notes=internal_notes,
+            resolution_category=resolution_category or ticket.get('predicted_category', 'General')
+        )
+        
+        # Send resolution email to customer if notification email available
+        email_sent = False
+        dest_email = ticket.get('notification_email') or ticket.get('user_email')
+        if dest_email:
+            try:
+                email_sent = send_ticket_resolution_email(
+                    dest_email,
+                    ticket_id,
+                    ticket.get('predicted_category', 'General'),
+                    ticket.get('ticket_text', ''),
+                    detailed_solution
+                )
+            except Exception as mail_err:
+                logger.warning(f"Failed sending manual resolution email for #{ticket_id}: {mail_err}")
+                
+        return jsonify({
+            'success': True,
+            'message': f'Manual resolution for Ticket #{ticket_id} successfully dispatched to customer. Status updated to Awaiting Customer.',
+            'resolution_id': res_id,
+            'status': 'awaiting_customer',
+            'email_sent': email_sent
+        })
+    except Exception as e:
+        logger.error(f"Error submitting manual resolution: {e}")
+        return jsonify({'error': f'Error submitting manual resolution: {str(e)}'}), 500
+
 @app.route('/admin/resolve_ticket', methods=['POST'])
 def resolve_ticket():
-    """Admin route to resolve a ticket"""
+    """Admin route to resolve a ticket manually (delegates to save_manual_resolution)"""
     if 'user_id' not in session or not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
     
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         ticket_id = data.get('ticket_id')
-        resolution_notes = data.get('resolution_notes', '').strip()
+        resolution_notes = str(data.get('resolution_notes', '')).strip()
+        summary = str(data.get('summary', 'Admin Manual Resolution')).strip()
+        internal_notes = str(data.get('internal_notes', '')).strip()
         
         if not ticket_id:
             return jsonify({'error': 'Ticket ID is required'}), 400
-        
         if not resolution_notes:
             return jsonify({'error': 'Resolution notes are required'}), 400
         
-        db = get_db()
-        
-        # Get ticket details
-        ticket = db.execute('''
-            SELECT t.*, u.email, u.username 
-            FROM tickets t 
-            LEFT JOIN users u ON t.user_id = u.id 
-            WHERE t.id = ?
-        ''', (ticket_id,)).fetchone()
-        
+        ticket = TicketRepository.get_ticket(ticket_id)
         if not ticket:
-            db.close()
             return jsonify({'error': 'Ticket not found'}), 404
         
-        # Update ticket status
-        db.execute('''
-            UPDATE tickets 
-            SET status = 'Resolved', 
-                resolved_at = CURRENT_TIMESTAMP,
-                resolved_by = ?,
-                resolution_notes = ?
-            WHERE id = ?
-        ''', (session['user_id'], resolution_notes, ticket_id))
+        admin_id = session['user_id']
+        res_id = TicketRepository.save_manual_resolution(
+            ticket_id=ticket_id,
+            admin_id=admin_id,
+            summary=summary,
+            detailed_solution=resolution_notes,
+            internal_notes=internal_notes,
+            resolution_category=ticket.get('predicted_category', 'General')
+        )
         
-        db.commit()
-        db.close()
-        
-        # Send resolution email
         email_sent = False
-        if ticket['notification_email']:
-            email_sent = send_ticket_resolution_email(
-                ticket['notification_email'],
-                ticket_id,
-                ticket['predicted_category'],
-                ticket['ticket_text'],
-                resolution_notes
-            )
-        elif ticket['email']:  # Use user's registered email if no notification email
-            email_sent = send_ticket_resolution_email(
-                ticket['email'],
-                ticket_id,
-                ticket['predicted_category'],
-                ticket['ticket_text'],
-                resolution_notes
-            )
+        dest_email = ticket.get('notification_email') or ticket.get('user_email')
+        if dest_email:
+            try:
+                email_sent = send_ticket_resolution_email(
+                    dest_email, ticket_id, ticket['predicted_category'], ticket['ticket_text'], resolution_notes
+                )
+            except Exception:
+                pass
         
         return jsonify({
             'success': True,
-            'message': 'Ticket resolved successfully',
+            'message': 'Manual resolution submitted. Status updated to awaiting customer confirmation.',
+            'status': 'awaiting_customer',
+            'resolution_id': res_id,
             'email_sent': email_sent
         })
-        
     except Exception as e:
         return jsonify({'error': f'Error resolving ticket: {str(e)}'}), 500
+
+@app.route('/admin/ticket/<int:ticket_id>/generate_ai_solution', methods=['POST'])
+def generate_ai_solution_api(ticket_id):
+    """Generates an AI proposed solution using RAG + Gemini for admin review and editing."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized: Admin access required'}), 401
+
+    ticket = TicketRepository.get_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': f'Ticket #{ticket_id} not found'}), 404
+
+    from src.resolution.resolution_engine import ResolutionEngine
+    res_engine = ResolutionEngine()
+    result = res_engine.process_ticket(
+        ticket_id=ticket_id,
+        customer_message=ticket['ticket_text'],
+        predicted_category=ticket['predicted_category'],
+        confidence=float(ticket['confidence']),
+        is_out_of_scope=bool(ticket.get('is_out_of_scope', 0)),
+        needs_human_review_flag=bool(ticket.get('needs_human_review', 0)),
+        review_reason=ticket.get('review_reason', '')
+    )
+
+    r_data = result.get('resolution_data', {})
+    proposed = r_data.get('proposed_solution', [])
+    if isinstance(proposed, list):
+        formatted_proposed = "\n".join(f"{i+1}. {s}" for i, s in enumerate(proposed))
+    else:
+        formatted_proposed = str(proposed)
+
+    return jsonify({
+        'success': True,
+        'message': 'AI proposed solution generated successfully.',
+        'problem_summary': r_data.get('problem_summary', ''),
+        'identified_issue': r_data.get('identified_issue', ''),
+        'proposed_solution': formatted_proposed,
+        'grounding_status': r_data.get('grounding_status', 'unverified'),
+        'requires_human_review': r_data.get('requires_human_review', False),
+        'escalation_reason': r_data.get('escalation_reason', ''),
+        'sources': result.get('retrieved_documents', []),
+        'model_name': r_data.get('model_name', 'gemini-3.8-flash'),
+        'suggested_status': result.get('status')
+    })
+
+@app.route('/admin/ticket/<int:ticket_id>/approve_ai_solution', methods=['POST'])
+def approve_ai_solution_api(ticket_id):
+    """Admin approves, edits, and sends AI resolution to customer (Status -> awaiting_customer)."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized: Admin access required'}), 401
+
+    data = request.get_json() or {}
+    final_solution = str(data.get('final_solution', '')).strip()
+    internal_notes = str(data.get('internal_notes', '')).strip()
+
+    ticket = TicketRepository.get_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': f'Ticket #{ticket_id} not found'}), 404
+
+    if not final_solution:
+        latest_res = TicketRepository.get_latest_resolution(ticket_id)
+        if latest_res and latest_res.get('proposed_solution'):
+            final_solution = latest_res['proposed_solution']
+        else:
+            return jsonify({'error': 'Solution text is required'}), 400
+
+    admin_id = session['user_id']
+    TicketRepository.approve_and_send_ai_resolution(
+        ticket_id=ticket_id,
+        admin_id=admin_id,
+        final_solution=final_solution,
+        internal_notes=internal_notes
+    )
+
+    email_sent = False
+    dest_email = ticket.get('notification_email') or ticket.get('user_email')
+    if dest_email:
+        try:
+            email_sent = send_ticket_resolution_email(
+                dest_email,
+                ticket_id,
+                ticket.get('predicted_category', 'General'),
+                ticket.get('ticket_text', ''),
+                final_solution
+            )
+        except Exception as mail_err:
+            logger.warning(f"Failed sending email for approved AI resolution #{ticket_id}: {mail_err}")
+
+    return jsonify({
+        'success': True,
+        'message': f'AI resolution for Ticket #{ticket_id} approved and sent to customer. Status set to Awaiting Customer.',
+        'status': 'awaiting_customer',
+        'email_sent': email_sent
+    })
+
+@app.route('/admin/resolution_history')
+def get_resolution_history_api():
+    """Returns resolution history across all tickets for the Admin console."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized: Admin access required'}), 401
+
+    limit = request.args.get('limit', 100)
+    try:
+        limit = min(500, max(1, int(limit)))
+    except ValueError:
+        limit = 100
+
+    history = TicketRepository.list_resolution_history(limit=limit)
+    return jsonify({
+        'success': True,
+        'history': history,
+        'count': len(history)
+    })
+
+@app.route('/api/ticket/<int:ticket_id>/reopen', methods=['POST'])
+def reopen_ticket_api(ticket_id):
+    """Customer or Admin reopens a ticket if problem is not resolved."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Please login first'}), 401
+
+    ticket = TicketRepository.get_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': 'Ticket not found'}), 404
+
+    if not session.get('is_admin') and ticket.get('user_id') != session.get('user_id'):
+        return jsonify({'error': 'Unauthorized to reopen this ticket'}), 403
+
+    data = request.get_json() or {}
+    reason = str(data.get('reason', 'Customer reported issue is not resolved.')).strip()
+
+    TicketRepository.reopen_ticket(ticket_id, reason=reason, user_id=session.get('user_id'))
+    return jsonify({
+        'success': True,
+        'message': f'Ticket #{ticket_id} has been reopened and queued for specialist review.',
+        'status': 'reopened'
+    })
 
 @app.route('/api/tickets')
 def api_tickets():
@@ -1078,12 +1280,13 @@ def get_ticket_resolution_api(ticket_id):
 
 @app.route('/api/ticket/<int:ticket_id>/approve_resolution', methods=['POST'])
 def approve_ticket_resolution(ticket_id):
-    """Admin approves proposed AI solution as the verified resolution."""
+    """Admin approves and sends proposed AI solution to customer (Status -> awaiting_customer)."""
     if 'user_id' not in session or not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
 
     data = request.get_json() or {}
-    custom_notes = data.get('resolution_notes', '').strip()
+    custom_notes = str(data.get('resolution_notes', '') or data.get('final_solution', '')).strip()
+    internal_notes = str(data.get('internal_notes', '')).strip()
 
     ticket = TicketRepository.get_ticket(ticket_id)
     if not ticket:
@@ -1092,39 +1295,31 @@ def approve_ticket_resolution(ticket_id):
     resolution = TicketRepository.get_latest_resolution(ticket_id)
     final_solution = custom_notes or (resolution.get('proposed_solution') if resolution else 'Approved by support supervisor.')
 
-    with get_db() as db:
-        db.execute(
-            """
-            UPDATE tickets
-            SET status = 'Resolved', resolved_at = CURRENT_TIMESTAMP,
-                resolved_by = %s, resolution_notes = %s, needs_human_review = 0
-            WHERE id = %s;
-            """,
-            (session['user_id'], final_solution, ticket_id)
-        )
-        if resolution:
-            db.execute(
-                """
-                UPDATE ticket_resolutions
-                SET final_solution = %s, resolution_status = 'approved',
-                    requires_human_review = FALSE, resolved_at = CURRENT_TIMESTAMP
-                WHERE id = %s;
-                """,
-                (final_solution, resolution['id'])
-            )
-        db.commit()
-
-    TicketRepository.update_status(ticket_id, 'Resolved', 'AI Resolution approved by Admin.')
+    admin_id = session['user_id']
+    TicketRepository.approve_and_send_ai_resolution(
+        ticket_id=ticket_id,
+        admin_id=admin_id,
+        final_solution=final_solution,
+        internal_notes=internal_notes
+    )
 
     # Send resolution email if address available
     email_sent = False
     dest_email = ticket.get('notification_email') or ticket.get('user_email')
     if dest_email:
-        email_sent = send_ticket_resolution_email(
-            dest_email, ticket_id, ticket['predicted_category'], ticket['ticket_text'], final_solution
-        )
+        try:
+            email_sent = send_ticket_resolution_email(
+                dest_email, ticket_id, ticket['predicted_category'], ticket['ticket_text'], final_solution
+            )
+        except Exception as mail_err:
+            logger.warning(f"Could not send approval email for #{ticket_id}: {mail_err}")
 
-    return jsonify({'success': True, 'message': 'Resolution approved and ticket resolved', 'email_sent': email_sent})
+    return jsonify({
+        'success': True,
+        'message': f'Resolution for Ticket #{ticket_id} approved and dispatched to customer. Status set to Awaiting Customer.',
+        'status': 'awaiting_customer',
+        'email_sent': email_sent
+    })
 
 
 @app.route('/api/ticket/<int:ticket_id>/escalate', methods=['POST'])
@@ -1366,57 +1561,36 @@ def get_analytics_api():
     if 'user_id' not in session or not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 401
 
-    with get_db() as db:
-        # Total counts
-        total_tickets = db.execute("SELECT COUNT(*) as cnt FROM tickets;").fetchone()["cnt"]
-        resolved_tickets = db.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status = 'Resolved';").fetchone()["cnt"]
-        awaiting_customer = db.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status = 'awaiting_customer';").fetchone()["cnt"]
-        escalated_tickets = db.execute("SELECT COUNT(*) as cnt FROM tickets WHERE needs_human_review = 1 OR status = 'needs_review';").fetchone()["cnt"]
-        open_tickets = db.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status = 'Open';").fetchone()["cnt"]
+    metrics = TicketRepository.get_admin_metrics()
 
-        # Category distribution
-        cat_rows = db.execute("""
-            SELECT predicted_category, COUNT(*) as count, AVG(confidence) as avg_conf
-            FROM tickets
-            GROUP BY predicted_category
-            ORDER BY count DESC;
-        """).fetchall()
-        category_distribution = [dict(r) for r in cat_rows]
+    category_distribution = []
+    kb_docs_count = 0
+    kb_chunks_count = 0
 
-        # Customer Feedback Satisfaction
-        fb_stats = db.execute("""
-            SELECT 
-                COUNT(*) as feedback_count,
-                AVG(feedback_rating) as avg_rating,
-                SUM(CASE WHEN was_resolved = TRUE THEN 1 ELSE 0 END) as verified_resolved
-            FROM ticket_feedback;
-        """).fetchone()
+    try:
+        with get_db() as db:
+            # Category distribution
+            cat_rows = db.execute("""
+                SELECT predicted_category, COUNT(*) as count, AVG(confidence) as avg_conf
+                FROM tickets
+                GROUP BY predicted_category
+                ORDER BY count DESC;
+            """).fetchall()
+            category_distribution = [dict(r) for r in cat_rows]
 
-        # Knowledge Base stats
-        kb_docs_count = db.execute("SELECT COUNT(*) as cnt FROM knowledge_documents WHERE is_active = TRUE;").fetchone()["cnt"]
-        kb_chunks_count = db.execute("SELECT COUNT(*) as cnt FROM knowledge_chunks kc JOIN knowledge_documents kd ON kc.document_id = kd.id WHERE kd.is_active = TRUE;").fetchone()["cnt"]
+            # Knowledge Base stats
+            kb_docs_count = db.execute("SELECT COUNT(*) as cnt FROM knowledge_documents WHERE is_active = TRUE;").fetchone()["cnt"]
+            kb_chunks_count = db.execute("SELECT COUNT(*) as cnt FROM knowledge_chunks kc JOIN knowledge_documents kd ON kc.document_id = kd.id WHERE kd.is_active = TRUE;").fetchone()["cnt"]
+    except Exception as db_err:
+        logger.warning(f"Could not query live category distribution: {db_err}")
 
-        # Calculate Rates
-        resolution_rate = round((resolved_tickets / total_tickets * 100), 1) if total_tickets > 0 else 0.0
-        escalation_rate = round((escalated_tickets / total_tickets * 100), 1) if total_tickets > 0 else 0.0
-        avg_rating = round(float(fb_stats["avg_rating"]), 2) if fb_stats and fb_stats["avg_rating"] else 4.8
+    metrics['category_distribution'] = category_distribution
+    metrics['active_kb_documents'] = kb_docs_count
+    metrics['active_kb_chunks'] = kb_chunks_count
 
     return jsonify({
         'success': True,
-        'metrics': {
-            'total_tickets': total_tickets,
-            'resolved_tickets': resolved_tickets,
-            'awaiting_customer': awaiting_customer,
-            'escalated_tickets': escalated_tickets,
-            'open_tickets': open_tickets,
-            'resolution_rate': resolution_rate,
-            'escalation_rate': escalation_rate,
-            'customer_satisfaction': avg_rating,
-            'feedback_count': fb_stats["feedback_count"] if fb_stats else 0,
-            'active_kb_documents': kb_docs_count,
-            'active_kb_chunks': kb_chunks_count,
-            'category_distribution': category_distribution
-        }
+        'metrics': metrics
     })
 
 

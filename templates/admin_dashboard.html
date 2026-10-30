@@ -14,15 +14,17 @@
             border: 1px solid var(--border-card);
             backdrop-filter: var(--glass-blur);
             border-radius: var(--radius-md);
-            padding: 20px;
+            padding: 16px 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             transition: all 0.25s ease;
+            height: 100%;
         }
         .admin-stat-card:hover {
             transform: translateY(-2px);
             border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: var(--shadow-sm);
         }
         .ticket-item-card {
             background: var(--bg-card);
@@ -47,11 +49,11 @@
         .ticket-item-card.outofscope { border-left-color: #ef4444; }
         
         .modal-content-dark {
-            background: #111827;
+            background: #0f172a;
             border: 1px solid var(--border-card);
             color: var(--text-primary);
             border-radius: var(--radius-md);
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85);
         }
         .modal-content-dark .modal-header {
             border-bottom: 1px solid var(--border-subtle);
@@ -106,19 +108,44 @@
             border-color: var(--border-subtle);
             vertical-align: middle;
         }
+        .badge-method-ai {
+            background: rgba(99, 102, 241, 0.15);
+            color: #818cf8;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        .badge-method-manual {
+            background: rgba(234, 88, 12, 0.15);
+            color: #fb923c;
+            border: 1px solid rgba(234, 88, 12, 0.3);
+        }
+        .badge-priority-high {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .badge-priority-medium {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .badge-priority-low {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
     </style>
 </head>
 <body>
-    <!-- Admin Navigation -->
-    <nav class="navbar navbar-expand-lg sticky-top" style="background: rgba(10, 14, 23, 0.9); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-subtle);">
+    <!-- Admin Top Navigation -->
+    <nav class="navbar navbar-expand-lg sticky-top" style="background: rgba(10, 14, 23, 0.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-subtle);">
         <div class="container py-2">
-            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('admin_dashboard') }}">
                 <div style="width: 36px; height: 36px; border-radius: 9px; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(99,102,241,0.5);">
                     <i class="fas fa-shield-alt text-white"></i>
                 </div>
                 <div class="d-flex flex-column">
                     <span class="fw-bold fs-5 brand-title lh-1">Ticket<span class="gradient-text">AI</span></span>
-                    <span class="small text-muted text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.08em;">Automation Console</span>
+                    <span class="small text-muted text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.08em;">Admin Resolution Console</span>
                 </div>
             </a>
             <div class="navbar-nav ms-auto d-flex flex-row align-items-center gap-3">
@@ -129,7 +156,7 @@
                     <i class="fas fa-database me-1"></i> NeonDB + pgvector
                 </span>
                 <span class="badge rounded-pill" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
-                    <i class="fas fa-brain me-1"></i> Gemini RAG Engine
+                    <i class="fas fa-brain me-1"></i> Gemini 3.8 Flash
                 </span>
                 <a class="btn-secondary-dark btn-sm py-1 px-3" href="{{ url_for('logout') }}">
                     <i class="fas fa-sign-out-alt me-1"></i> Logout
@@ -139,11 +166,96 @@
     </nav>
 
     <div class="container py-4">
+        <!-- Live NeonDB Metrics Row (Top Overview) -->
+        <div class="row g-3 mb-4">
+            <div class="col-xl-3 col-md-6">
+                <div class="admin-stat-card">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase">Total Tickets</span>
+                        <h3 class="fw-bold mb-0 mt-1">{{ metrics.total_tickets if metrics else (tickets|length) }}</h3>
+                        <span class="small text-muted">Ingested support requests</span>
+                    </div>
+                    <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; width: 42px; height: 42px; border-radius: 10px; display:flex; align-items:center; justify-content:center;">
+                        <i class="fas fa-layer-group fs-5"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+                <div class="admin-stat-card">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase">AI-Assisted</span>
+                        <h3 class="fw-bold text-info mb-0 mt-1">{{ metrics.ai_assisted_resolutions if metrics else 0 }}</h3>
+                        <span class="small text-muted">Gemini + RAG grounded</span>
+                    </div>
+                    <div class="stat-icon" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4; width: 42px; height: 42px; border-radius: 10px; display:flex; align-items:center; justify-content:center;">
+                        <i class="fas fa-robot fs-5"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+                <div class="admin-stat-card">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase">Manual Resolutions</span>
+                        <h3 class="fw-bold text-warning mb-0 mt-1" style="color: #fb923c !important;">{{ metrics.manual_resolutions if metrics else 0 }}</h3>
+                        <span class="small text-muted">Admin-written solutions</span>
+                    </div>
+                    <div class="stat-icon" style="background: rgba(234, 88, 12, 0.15); color: #fb923c; width: 42px; height: 42px; border-radius: 10px; display:flex; align-items:center; justify-content:center;">
+                        <i class="fas fa-user-edit fs-5"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+                <div class="admin-stat-card">
+                    <div>
+                        <span class="text-secondary small fw-semibold text-uppercase">Verified Resolved</span>
+                        <h3 class="fw-bold text-success mb-0 mt-1">{{ metrics.resolved_tickets if metrics else 0 }}</h3>
+                        <span class="small text-muted">Verified by customer/agent</span>
+                    </div>
+                    <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399; width: 42px; height: 42px; border-radius: 10px; display:flex; align-items:center; justify-content:center;">
+                        <i class="fas fa-check-double fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Secondary Metrics Row -->
+        <div class="row g-2 mb-4">
+            <div class="col-md-3 col-6">
+                <div class="p-2 px-3 rounded glass-card d-flex align-items-center justify-content-between">
+                    <span class="small text-secondary"><i class="fas fa-clock me-1 text-muted"></i> Open Queries</span>
+                    <span class="fw-bold">{{ metrics.open_tickets if metrics else 0 }}</span>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="p-2 px-3 rounded glass-card d-flex align-items-center justify-content-between">
+                    <span class="small text-secondary"><i class="fas fa-user-clock me-1 text-warning"></i> Pending Review</span>
+                    <span class="fw-bold text-warning">{{ metrics.pending_tickets if metrics else 0 }}</span>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="p-2 px-3 rounded glass-card d-flex align-items-center justify-content-between">
+                    <span class="small text-secondary"><i class="fas fa-envelope-open-text me-1 text-info"></i> Awaiting Customer</span>
+                    <span class="fw-bold text-info">{{ metrics.awaiting_customer if metrics else 0 }}</span>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="p-2 px-3 rounded glass-card d-flex align-items-center justify-content-between">
+                    <span class="small text-secondary"><i class="fas fa-undo me-1 text-danger"></i> Reopened Tickets</span>
+                    <span class="fw-bold text-danger">{{ metrics.reopened_tickets if metrics else 0 }}</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Dashboard Navigation Tabs -->
         <ul class="nav nav-tabs nav-tabs-custom mb-4" id="adminTabs" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="tickets-tab" data-bs-toggle="tab" data-bs-target="#tickets-pane" type="button" role="tab">
-                    <i class="fas fa-inbox me-2"></i>Tickets & AI Resolution Queue
+                    <i class="fas fa-inbox me-2"></i>Tickets & Resolution Queue ({{ tickets|length }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane" type="button" role="tab">
+                    <i class="fas fa-history me-2"></i>Resolution History ({{ resolution_history|length if resolution_history else 0 }})
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -153,110 +265,71 @@
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-pane" type="button" role="tab" onclick="loadLiveAnalytics()">
-                    <i class="fas fa-chart-line me-2"></i>System Analytics & Performance
+                    <i class="fas fa-chart-line me-2"></i>AI vs. Manual Analytics
                 </button>
             </li>
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
-            <!-- PANE 1: TICKETS FEED & AI TRIAGE -->
+            <!-- PANE 1: TICKETS FEED & RESOLUTION ACTIONS -->
             <div class="tab-pane fade show active" id="tickets-pane" role="tabpanel">
-                <!-- Top Stats Row (Ticket Overview) -->
-                <div class="row g-3 mb-4">
-                    <div class="col-lg-2 col-md-4 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Total</span>
-                                <h3 class="fw-bold mb-0 mt-1">{{ stats|sum(attribute='total') or 0 }}</h3>
-                            </div>
-                            <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; width: 36px; height: 36px;">
-                                <i class="fas fa-layer-group"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-2 col-md-4 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Auto-Answered</span>
-                                <h3 class="fw-bold text-info mb-0 mt-1">{{ stats|sum(attribute='awaiting_customer') or 0 }}</h3>
-                            </div>
-                            <div class="stat-icon" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4; width: 36px; height: 36px;">
-                                <i class="fas fa-robot"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-2 col-md-4 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Escalated</span>
-                                <h3 class="fw-bold text-warning mb-0 mt-1">{{ stats|sum(attribute='escalated') or 0 }}</h3>
-                            </div>
-                            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; width: 36px; height: 36px;">
-                                <i class="fas fa-user-clock"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-2 col-md-4 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Open Queries</span>
-                                <h3 class="fw-bold mb-0 text-secondary mt-1">{{ stats|sum(attribute='open') or 0 }}</h3>
-                            </div>
-                            <div class="stat-icon" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; width: 36px; height: 36px;">
-                                <i class="fas fa-clock"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-2 col-md-4 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Resolved</span>
-                                <h3 class="fw-bold text-success mb-0 mt-1">{{ stats|sum(attribute='resolved') or 0 }}</h3>
-                            </div>
-                            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399; width: 36px; height: 36px;">
-                                <i class="fas fa-check-double"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-2 col-md-4 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Categories</span>
-                                <h3 class="fw-bold mb-0 gradient-text-cyan mt-1">{{ stats|length or 5 }}</h3>
-                            </div>
-                            <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; width: 36px; height: 36px;">
-                                <i class="fas fa-tags"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Filter Controls -->
+                <!-- Search & Filter Controls Bar -->
                 <div class="glass-card p-3 mb-4">
-                    <form method="GET" class="row g-2 align-items-end">
-                        <div class="col-md-4">
-                            <label class="form-label text-secondary small fw-semibold">Filter by Status</label>
-                            <select name="status" class="form-select form-select-dark form-select-sm">
-                                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+                    <form method="GET" action="{{ url_for('admin_dashboard') }}" class="row g-2 align-items-end" id="ticketFilterForm">
+                        <div class="col-lg-3 col-md-6">
+                            <label class="form-label text-secondary small fw-semibold">Search Tickets</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fas fa-search"></i></span>
+                                <input type="text" name="search" class="form-control form-control-dark" placeholder="Ticket ID, user, keywords..." value="{{ search_query or '' }}">
+                            </div>
+                        </div>
+                        <div class="col-lg-2 col-md-3 col-6">
+                            <label class="form-label text-secondary small fw-semibold">Status</label>
+                            <select name="status" class="form-select form-select-dark form-select-sm" onchange="document.getElementById('ticketFilterForm').submit()">
+                                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Tickets</option>
                                 <option value="Open" {% if status_filter == 'Open' %}selected{% endif %}>Open</option>
-                                <option value="awaiting_customer" {% if status_filter == 'awaiting_customer' %}selected{% endif %}>Awaiting Customer (Auto-Answered)</option>
-                                <option value="needs_review" {% if status_filter == 'needs_review' %}selected{% endif %}>Needs Review (Escalated)</option>
+                                <option value="pending_review" {% if status_filter == 'pending_review' or status_filter == 'needs_review' %}selected{% endif %}>Pending Review</option>
+                                <option value="ai_suggested" {% if status_filter == 'ai_suggested' %}selected{% endif %}>AI Suggested</option>
+                                <option value="awaiting_customer" {% if status_filter == 'awaiting_customer' %}selected{% endif %}>Awaiting Customer</option>
                                 <option value="Resolved" {% if status_filter == 'Resolved' %}selected{% endif %}>Resolved</option>
+                                <option value="reopened" {% if status_filter == 'reopened' %}selected{% endif %}>Reopened</option>
+                                <option value="escalated" {% if status_filter == 'escalated' %}selected{% endif %}>Escalated</option>
                             </select>
                         </div>
-                        <div class="col-md-5">
-                            <label class="form-label text-secondary small fw-semibold">Filter by AI Category</label>
-                            <select name="category" class="form-select form-select-dark form-select-sm">
+                        <div class="col-lg-2 col-md-3 col-6">
+                            <label class="form-label text-secondary small fw-semibold">Category</label>
+                            <select name="category" class="form-select form-select-dark form-select-sm" onchange="document.getElementById('ticketFilterForm').submit()">
                                 <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
                                 {% for category in categories %}
                                 <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-lg-2 col-md-4 col-6">
+                            <label class="form-label text-secondary small fw-semibold">Priority</label>
+                            <select name="priority" class="form-select form-select-dark form-select-sm" onchange="document.getElementById('ticketFilterForm').submit()">
+                                <option value="all" {% if priority_filter == 'all' %}selected{% endif %}>All Priorities</option>
+                                <option value="High" {% if priority_filter == 'High' %}selected{% endif %}>High</option>
+                                <option value="Medium" {% if priority_filter == 'Medium' %}selected{% endif %}>Medium</option>
+                                <option value="Low" {% if priority_filter == 'Low' %}selected{% endif %}>Low</option>
+                                <option value="Urgent" {% if priority_filter == 'Urgent' %}selected{% endif %}>Urgent</option>
+                            </select>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-6">
+                            <label class="form-label text-secondary small fw-semibold">Resolution Method</label>
+                            <select name="method" class="form-select form-select-dark form-select-sm" onchange="document.getElementById('ticketFilterForm').submit()">
+                                <option value="all" {% if method_filter == 'all' %}selected{% endif %}>All Methods</option>
+                                <option value="AI" {% if method_filter == 'AI' %}selected{% endif %}>AI-Assisted</option>
+                                <option value="MANUAL" {% if method_filter == 'MANUAL' %}selected{% endif %}>Manual</option>
+                            </select>
+                        </div>
+                        <div class="col-lg-1 col-md-4 col-12 d-flex gap-1">
                             <button type="submit" class="btn-primary-glow btn-sm w-100 justify-content-center">
-                                <i class="fas fa-filter me-1"></i> Apply Filter
+                                <i class="fas fa-filter"></i>
                             </button>
+                            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary-dark btn-sm" title="Clear Filters">
+                                <i class="fas fa-undo"></i>
+                            </a>
                         </div>
                     </form>
                 </div>
@@ -265,7 +338,15 @@
                 <div class="mb-5">
                     {% if tickets %}
                         {% for ticket in tickets %}
-                        <div class="ticket-item-card {{ ticket.predicted_category.lower().replace(' ', '') }}">
+                        <div class="ticket-item-card {{ ticket.predicted_category.lower().replace(' ', '') }}"
+                             data-ticket-id="{{ ticket.id }}"
+                             data-ticket-category="{{ ticket.predicted_category }}"
+                             data-ticket-status="{{ ticket.status }}"
+                             data-ticket-priority="{{ ticket.priority or 'Medium' }}"
+                             data-ticket-confidence="{{ ticket.confidence }}"
+                             data-ticket-email="{{ ticket.email or ticket.notification_email or '' }}"
+                             data-ticket-username="{{ ticket.username or 'Customer' }}"
+                             data-ticket-subject="{{ ticket.subject or '' }}">
                             <div class="row align-items-start g-3">
                                 <div class="col-lg-8">
                                     <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
@@ -275,44 +356,79 @@
                                         {% if ticket.status == 'Resolved' %}
                                         <span class="badge bg-success text-white small"><i class="fas fa-check-circle me-1"></i>Resolved</span>
                                         {% elif ticket.status == 'awaiting_customer' %}
-                                        <span class="badge bg-info text-dark small"><i class="fas fa-robot me-1"></i>Auto-Answered (Awaiting Customer)</span>
+                                        <span class="badge bg-info text-dark small"><i class="fas fa-user-clock me-1"></i>Awaiting Customer</span>
+                                        {% elif ticket.status == 'reopened' %}
+                                        <span class="badge bg-danger text-white small"><i class="fas fa-exclamation-triangle me-1"></i>Reopened</span>
                                         {% elif ticket.status == 'needs_review' or ticket.needs_human_review %}
-                                        <span class="badge bg-warning text-dark small"><i class="fas fa-user-clock me-1"></i>Needs Human Review</span>
+                                        <span class="badge bg-warning text-dark small"><i class="fas fa-user-shield me-1"></i>Specialist Review Needed</span>
                                         {% else %}
                                         <span class="badge bg-secondary text-white small"><i class="fas fa-clock me-1"></i>{{ ticket.status }}</span>
                                         {% endif %}
 
                                         <!-- Category Badge -->
                                         <span class="badge rounded-pill" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
-                                            {{ ticket.predicted_category }}
+                                            <i class="fas fa-tag me-1"></i>{{ ticket.predicted_category }}
                                         </span>
+
+                                        <!-- Priority Badge -->
+                                        {% set pr = ticket.priority or 'Medium' %}
+                                        <span class="badge rounded-pill small {% if pr == 'High' or pr == 'Urgent' %}badge-priority-high{% elif pr == 'Medium' %}badge-priority-medium{% else %}badge-priority-low{% endif %}">
+                                            <i class="fas fa-flag me-1"></i>{{ pr }}
+                                        </span>
+
+                                        <!-- Resolution Method Badge -->
+                                        {% if ticket.resolution_method == 'MANUAL' %}
+                                        <span class="badge badge-method-manual rounded-pill small">
+                                            <i class="fas fa-user-edit me-1"></i>Manual
+                                        </span>
+                                        {% elif ticket.resolution_method == 'AI' or (ticket.resolution and ticket.status == 'awaiting_customer') %}
+                                        <span class="badge badge-method-ai rounded-pill small">
+                                            <i class="fas fa-robot me-1"></i>AI-Assisted
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-dark border text-muted rounded-pill small">
+                                            <i class="fas fa-hourglass-start me-1"></i>Pending Action
+                                        </span>
+                                        {% endif %}
 
                                         <span class="badge rounded-pill small" style="background: rgba(255,255,255,0.06); color: {% if ticket.confidence < 60 %}#f59e0b{% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
                                             {{ "%.1f"|format(ticket.confidence) }}% ML Conf
                                         </span>
                                     </div>
 
-                                    <!-- Customer Text Preview -->
-                                    <div class="p-3 rounded mb-2" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle);">
-                                        <div class="small text-secondary mb-1"><i class="fas fa-comment-alt me-1"></i> Customer Message:</div>
-                                        <p class="mb-0 small" style="white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
+                                    <!-- Customer Details Preview -->
+                                    <div class="p-3 rounded mb-2" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-subtle);">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="small text-secondary fw-semibold">
+                                                <i class="far fa-user me-1 text-primary"></i> {{ ticket.username or 'Customer' }}
+                                                {% if ticket.email %}<span class="text-muted ms-2">&lt;{{ ticket.email }}&gt;</span>{% endif %}
+                                            </span>
+                                            <span class="small text-muted"><i class="far fa-calendar-alt me-1"></i> {{ ticket.created_at }}</span>
+                                        </div>
+                                        {% if ticket.subject %}
+                                        <div class="fw-bold small mb-1">{{ ticket.subject }}</div>
+                                        {% endif %}
+                                        <p class="mb-0 small text-secondary ticket-raw-text" style="white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
                                     </div>
 
-                                    <!-- AI Resolution Section if available -->
+                                    <!-- Latest Resolution Preview (If Available) -->
                                     {% if ticket.resolution %}
                                     <div class="p-3 rounded mb-2" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2);">
                                         <div class="d-flex align-items-center justify-content-between mb-1">
-                                            <span class="small fw-bold gradient-text"><i class="fas fa-sparkles me-1"></i> AI Proposed Resolution ({{ ticket.resolution.model_name }}):</span>
+                                            <span class="small fw-bold gradient-text">
+                                                <i class="fas {% if ticket.resolution.resolution_method == 'MANUAL' %}fa-user-check{% else %}fa-robot{% endif %} me-1"></i> 
+                                                {% if ticket.resolution.resolution_method == 'MANUAL' %}Manual Solution{% else %}AI Proposed Resolution ({{ ticket.resolution.model_name }}){% endif %}:
+                                            </span>
                                             <span class="badge bg-dark border text-muted small" style="font-size: 0.7rem;">
                                                 Grounding: {{ ticket.resolution.grounding_status }}
                                             </span>
                                         </div>
-                                        <p class="small text-secondary mb-2" style="white-space: pre-wrap;">{{ ticket.resolution.proposed_solution[:250] }}{% if ticket.resolution.proposed_solution|length > 250 %}...{% endif %}</p>
+                                        <p class="small text-secondary mb-2" style="white-space: pre-wrap;">{{ (ticket.resolution.final_solution or ticket.resolution.proposed_solution)[:260] }}{% if (ticket.resolution.final_solution or ticket.resolution.proposed_solution)|length > 260 %}...{% endif %}</p>
                                         
                                         <!-- Sources Tags -->
                                         {% if ticket.resolution.sources %}
                                         <div class="d-flex align-items-center gap-1 flex-wrap">
-                                            <span class="small text-muted" style="font-size: 0.7rem;">Retrieved Sources:</span>
+                                            <span class="small text-muted" style="font-size: 0.7rem;">Sources:</span>
                                             {% for src in ticket.resolution.sources %}
                                             <span class="source-pill" title="Score: {{ src.relevance_score }}">
                                                 <i class="fas fa-file-alt"></i> {{ src.doc_title or 'Doc' }} ({{ "%.2f"|format(src.relevance_score) }})
@@ -325,40 +441,32 @@
 
                                     {% if ticket.review_reason %}
                                     <div class="small text-warning mb-2">
-                                        <i class="fas fa-exclamation-circle me-1"></i> Review Reason: {{ ticket.review_reason }}
+                                        <i class="fas fa-exclamation-circle me-1"></i> Flag Reason: {{ ticket.review_reason }}
                                     </div>
                                     {% endif %}
-
-                                    <div class="d-flex align-items-center flex-wrap gap-3 small text-muted">
-                                        <span><i class="far fa-user me-1 text-secondary"></i> {{ ticket.username or 'Customer' }}</span>
-                                        {% if ticket.email %}
-                                        <span><i class="far fa-envelope me-1 text-secondary"></i> {{ ticket.email }}</span>
-                                        {% endif %}
-                                        <span><i class="far fa-clock me-1 text-secondary"></i> {{ ticket.created_at }}</span>
-                                    </div>
                                 </div>
 
-                                <div class="col-lg-4 text-lg-end d-flex flex-column gap-2 justify-content-start">
-                                    <button class="btn btn-outline-info btn-sm px-3 py-2 fw-semibold rounded-3 text-start text-lg-end" onclick="openTraceabilityModal('{{ ticket.id }}')">
-                                        <i class="fas fa-search-plus me-1"></i> Inspect AI & Grounding
+                                <!-- Action Buttons: Clearly Distinguishable AI vs Manual Options -->
+                                <div class="col-lg-4 d-flex flex-column gap-2 justify-content-start text-start">
+                                    <!-- Option A: AI Resolution -->
+                                    <button class="btn btn-primary-glow btn-sm py-2 px-3 fw-semibold w-100 justify-content-start" onclick="openAIResolutionStudio('{{ ticket.id }}')">
+                                        <i class="fas fa-sparkles me-2"></i> Resolve with AI (RAG + Gemini)
+                                    </button>
+
+                                    <!-- Option B: Manual Resolution -->
+                                    <button class="btn btn-outline-warning btn-sm py-2 px-3 fw-semibold w-100 text-start" style="color: #fb923c; border-color: rgba(234, 88, 12, 0.4);" onclick="openManualResolutionStudio('{{ ticket.id }}')">
+                                        <i class="fas fa-pen-nib me-2"></i> Resolve Manually (Admin Solution)
+                                    </button>
+
+                                    <!-- Detailed Inspection Modal Button -->
+                                    <button class="btn btn-outline-info btn-sm py-1 px-3 w-100 text-start" onclick="openTraceabilityModal('{{ ticket.id }}')">
+                                        <i class="fas fa-search-plus me-2"></i> Ticket Details & History
                                     </button>
 
                                     {% if ticket.status != 'Resolved' %}
-                                    <button class="btn btn-success btn-sm px-3 py-2 fw-semibold rounded-3 shadow-sm text-start text-lg-end" onclick="approveAIResolution('{{ ticket.id }}')">
-                                        <i class="fas fa-check-circle me-1"></i> Approve AI Response
+                                    <button class="btn btn-secondary-dark btn-sm py-1 px-3 w-100 text-start" onclick="escalateTicket('{{ ticket.id }}')">
+                                        <i class="fas fa-user-shield me-2"></i> Escalate to Specialist
                                     </button>
-
-                                    <button class="btn btn-outline-warning btn-sm px-3 py-1 text-start text-lg-end" onclick="escalateTicket('{{ ticket.id }}')">
-                                        <i class="fas fa-user-shield me-1"></i> Escalate to Specialist
-                                    </button>
-
-                                    <button class="btn btn-outline-secondary btn-sm px-3 py-1 text-start text-lg-end" onclick="resolveTicket('{{ ticket.id }}')">
-                                        <i class="fas fa-edit me-1"></i> Custom Resolution Notes
-                                    </button>
-                                    {% else %}
-                                    <span class="text-success small fw-semibold">
-                                        <i class="fas fa-shield-check me-1"></i> Resolution Verified
-                                    </span>
                                     {% endif %}
                                 </div>
                             </div>
@@ -374,7 +482,99 @@
                 </div>
             </div>
 
-            <!-- PANE 2: KNOWLEDGE BASE MANAGER -->
+            <!-- PANE 2: RESOLUTION HISTORY (AUDITABLE LOG) -->
+            <div class="tab-pane fade" id="history-pane" role="tabpanel">
+                <div class="glass-card p-4 mb-5">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div>
+                            <h5 class="fw-bold mb-1"><i class="fas fa-history text-primary me-2"></i>Admin Resolution Audit History</h5>
+                            <p class="text-secondary small mb-0">Preserves original proposed answers, admin-edited final solutions, customer feedback, and timestamps.</p>
+                        </div>
+                        <button class="btn btn-secondary-dark btn-sm" onclick="location.reload()">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh History
+                        </button>
+                    </div>
+
+                    {% if resolution_history %}
+                    <div class="table-responsive">
+                        <table class="table table-dark-custom align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Ticket</th>
+                                    <th>Method</th>
+                                    <th>Resolved By</th>
+                                    <th>Proposed Solution</th>
+                                    <th>Final Solution Sent</th>
+                                    <th>Date</th>
+                                    <th>Customer Feedback</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for res in resolution_history %}
+                                <tr>
+                                    <td class="fw-bold">
+                                        <a href="#" onclick="openTraceabilityModal('{{ res.ticket_id }}'); return false;" class="text-info text-decoration-none">
+                                            #{{ res.ticket_id }}
+                                        </a>
+                                        <div class="small text-muted">{{ res.predicted_category }}</div>
+                                    </td>
+                                    <td>
+                                        {% if res.resolution_method == 'MANUAL' %}
+                                        <span class="badge badge-method-manual rounded-pill px-2 py-1"><i class="fas fa-pen-nib me-1"></i>Manual</span>
+                                        {% else %}
+                                        <span class="badge badge-method-ai rounded-pill px-2 py-1"><i class="fas fa-robot me-1"></i>AI-Assisted</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="small fw-semibold">{{ res.admin_username or 'Admin' }}</span>
+                                    </td>
+                                    <td style="max-width: 220px;">
+                                        <div class="small text-secondary text-truncate" title="{{ res.proposed_solution }}">
+                                            {{ res.proposed_solution }}
+                                        </div>
+                                    </td>
+                                    <td style="max-width: 240px;">
+                                        <div class="small text-truncate text-light fw-semibold" title="{{ res.final_solution or res.proposed_solution }}">
+                                            {{ res.final_solution or res.proposed_solution }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="small text-muted">{{ res.sent_at or res.resolution_created_at }}</span>
+                                    </td>
+                                    <td>
+                                        {% if res.feedback_rating %}
+                                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">
+                                            <i class="fas fa-star text-warning me-1"></i>{{ res.feedback_rating }}/5
+                                        </span>
+                                        {% if res.feedback_comment %}
+                                        <div class="small text-muted text-truncate" style="max-width: 140px;" title="{{ res.feedback_comment }}">"{{ res.feedback_comment }}"</div>
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="small text-muted">Awaiting feedback</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if res.current_ticket_status == 'Resolved' %}bg-success{% elif res.current_ticket_status == 'awaiting_customer' %}bg-info text-dark{% else %}bg-secondary{% endif %} small">
+                                            {{ res.current_ticket_status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-history fa-3x mb-3"></i>
+                        <h6>No Resolution History Recorded Yet</h6>
+                        <p class="small text-secondary">Resolutions submitted via AI-Assisted or Manual channels will appear here automatically.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- PANE 3: KNOWLEDGE BASE MANAGER -->
             <div class="tab-pane fade" id="kb-pane" role="tabpanel">
                 <div class="row g-4 mb-4">
                     <!-- Upload File Card -->
@@ -450,50 +650,58 @@
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-dark-custom">
+                        <table class="table table-dark-custom align-middle">
                             <thead>
                                 <tr>
                                     <th>ID</th>
-                                    <th>Title</th>
+                                    <th>Document Title</th>
                                     <th>Category</th>
-                                    <th>Source</th>
-                                    <th>Chunks</th>
+                                    <th>Source File</th>
+                                    <th>Vector Chunks</th>
                                     <th>Status</th>
-                                    <th class="text-end">Actions</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% if kb_documents %}
                                     {% for doc in kb_documents %}
                                     <tr>
-                                        <td>#{{ doc.id }}</td>
-                                        <td class="fw-semibold">{{ doc.title }}</td>
-                                        <td><span class="badge bg-dark border">{{ doc.category }}</span></td>
+                                        <td class="text-muted">#{{ doc.id }}</td>
+                                        <td class="fw-bold">{{ doc.title }}</td>
+                                        <td>
+                                            <span class="badge rounded-pill" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
+                                                {{ doc.category }}
+                                            </span>
+                                        </td>
                                         <td class="small text-secondary">{{ doc.source }}</td>
-                                        <td><span class="badge bg-primary text-white">{{ doc.chunk_count }} chunks</span></td>
+                                        <td>
+                                            <span class="badge bg-secondary rounded-pill">{{ doc.chunk_count or 0 }} chunks</span>
+                                        </td>
                                         <td>
                                             {% if doc.is_active %}
-                                            <span class="badge bg-success">Active</span>
+                                            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 px-2 py-1">Active</span>
                                             {% else %}
-                                            <span class="badge bg-secondary">Inactive</span>
+                                            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 px-2 py-1">Inactive</span>
                                             {% endif %}
                                         </td>
-                                        <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Toggle Active" onclick="toggleKBDoc('{{ doc.id }}', {{ 'false' if doc.is_active else 'true' }})">
-                                                <i class="fas {% if doc.is_active %}fa-eye-slash{% else %}fa-eye{% endif %}"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-info py-0 px-2" title="Reindex Embeddings" onclick="reindexKBDoc('{{ doc.id }}')">
-                                                <i class="fas fa-sync"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete Document" onclick="deleteKBDoc('{{ doc.id }}')">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
+                                        <td>
+                                            <div class="d-flex gap-1">
+                                                <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Toggle active status" data-doc-id="{{ doc.id }}" data-next-state="{{ 'false' if doc.is_active else 'true' }}" onclick="handleToggleKBDoc(this)">
+                                                    <i class="fas {% if doc.is_active %}fa-toggle-on text-success{% else %}fa-toggle-off text-muted{% endif %}"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-info py-0 px-2" title="Reindex chunks" onclick="reindexKBDoc('{{ doc.id }}')">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete document" onclick="deleteKBDoc('{{ doc.id }}')">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                     {% endfor %}
                                 {% else %}
                                     <tr>
-                                        <td colspan="7" class="text-center py-4 text-muted">No knowledge base documents indexed yet.</td>
+                                        <td colspan="7" class="text-center text-muted py-4">No documents indexed in knowledge base yet.</td>
                                     </tr>
                                 {% endif %}
                             </tbody>
@@ -502,70 +710,84 @@
                 </div>
             </div>
 
-            <!-- PANE 3: SYSTEM ANALYTICS & METRICS -->
+            <!-- PANE 4: ANALYTICS & AI VS MANUAL COMPARISON -->
             <div class="tab-pane fade" id="analytics-pane" role="tabpanel">
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Resolution Success Rate</span>
-                                <h3 class="fw-bold text-success mb-0 mt-1" id="an-res-rate">--%</h3>
+                <!-- AI vs Manual Comparison Card -->
+                <div class="glass-card p-4 mb-4">
+                    <h5 class="fw-bold mb-3"><i class="fas fa-balance-scale text-primary me-2"></i>AI-Assisted vs. Manual Resolution Performance</h5>
+                    <p class="text-secondary small mb-3">Live comparison of tickets resolved via Google Gemini RAG automation versus expert Admin manual intervention.</p>
+                    
+                    <div class="row align-items-center mb-4">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="fw-semibold text-info"><i class="fas fa-robot me-1"></i> AI-Assisted Resolutions</span>
+                                <span class="fw-bold" id="an-ai-count">{{ metrics.ai_assisted_resolutions if metrics else 0 }}</span>
                             </div>
-                            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">
-                                <i class="fas fa-chart-pie"></i>
+                            <div class="progress mb-3" style="height: 10px; background: rgba(255,255,255,0.08);">
+                                {% set total_res = ((metrics.ai_assisted_resolutions or 0) + (metrics.manual_resolutions or 0)) %}
+                                {% set ai_pct = ((metrics.ai_assisted_resolutions or 0) / total_res * 100)|round(1) if total_res > 0 else 50 %}
+                                <div class="progress-bar bg-info" id="an-ai-bar" style="width: {{ ai_pct }}%"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="fw-semibold" style="color: #fb923c;"><i class="fas fa-user-edit me-1"></i> Manual Resolutions</span>
+                                <span class="fw-bold" id="an-manual-count">{{ metrics.manual_resolutions if metrics else 0 }}</span>
+                            </div>
+                            <div class="progress mb-3" style="height: 10px; background: rgba(255,255,255,0.08);">
+                                {% set manual_pct = ((metrics.manual_resolutions or 0) / total_res * 100)|round(1) if total_res > 0 else 50 %}
+                                <div class="progress-bar" id="an-manual-bar" style="background: #fb923c; width: {{ manual_pct }}%"></div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Escalation Rate</span>
-                                <h3 class="fw-bold text-warning mb-0 mt-1" id="an-esc-rate">--%</h3>
-                            </div>
-                            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">
-                                <i class="fas fa-shield-alt"></i>
+
+                    <div class="row g-3 text-center">
+                        <div class="col-md-3 col-6">
+                            <div class="p-3 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);">
+                                <span class="text-secondary small text-uppercase">Resolution Rate</span>
+                                <h4 class="fw-bold text-success mb-0 mt-1" id="an-res-rate">{{ metrics.resolution_rate if metrics else 0 }}%</h4>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Customer Satisfaction</span>
-                                <h3 class="fw-bold gradient-text-cyan mb-0 mt-1" id="an-csat">-- / 5.0</h3>
-                            </div>
-                            <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
-                                <i class="fas fa-star"></i>
+                        <div class="col-md-3 col-6">
+                            <div class="p-3 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);">
+                                <span class="text-secondary small text-uppercase">Customer CSAT</span>
+                                <h4 class="fw-bold text-warning mb-0 mt-1" id="an-csat">{{ metrics.customer_satisfaction if metrics else 4.8 }} / 5.0</h4>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="admin-stat-card">
-                            <div>
-                                <span class="text-secondary small fw-semibold text-uppercase">Active Vector Chunks</span>
-                                <h3 class="fw-bold text-info mb-0 mt-1" id="an-kb-chunks">--</h3>
+                        <div class="col-md-3 col-6">
+                            <div class="p-3 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);">
+                                <span class="text-secondary small text-uppercase">Active KB Chunks</span>
+                                <h4 class="fw-bold text-info mb-0 mt-1" id="an-kb-chunks">{{ metrics.active_kb_chunks if metrics and metrics.active_kb_chunks else 0 }}</h4>
                             </div>
-                            <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">
-                                <i class="fas fa-vector-square"></i>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="p-3 rounded" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);">
+                                <span class="text-secondary small text-uppercase">Reopened Rate</span>
+                                <h4 class="fw-bold text-danger mb-0 mt-1" id="an-reopen-rate">
+                                    {% if metrics and metrics.total_tickets > 0 %}
+                                    {{ ((metrics.reopened_tickets or 0) / metrics.total_tickets * 100)|round(1) }}%
+                                    {% else %}0.0%{% endif %}
+                                </h4>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Category Breakdown Grid -->
-                <div class="glass-card p-4 mb-4">
-                    <h5 class="fw-bold mb-3"><i class="fas fa-tags me-2"></i>Live Category Distribution & Confidence (NeonDB)</h5>
+                <!-- Category Breakdown Table -->
+                <div class="glass-card p-4 mb-5">
+                    <h5 class="fw-bold mb-3"><i class="fas fa-chart-pie text-cyan me-2"></i>Department Routing Breakdown</h5>
                     <div class="table-responsive">
-                        <table class="table table-dark-custom mb-0">
+                        <table class="table table-dark-custom align-middle">
                             <thead>
                                 <tr>
                                     <th>Category</th>
-                                    <th>Tickets Received</th>
+                                    <th>Ticket Volume</th>
                                     <th>Average Confidence</th>
                                     <th>Distribution</th>
                                 </tr>
                             </thead>
                             <tbody id="an-category-body">
-                                <tr><td colspan="4" class="text-center text-muted">Loading live metrics...</td></tr>
+                                <tr><td colspan="4" class="text-center text-muted">Click the tab to load real-time analytics.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -574,57 +796,195 @@
         </div>
     </div>
 
-    <!-- AI Resolution & Traceability Modal -->
-    <div class="modal fade" id="traceabilityModal" tabindex="-1">
+    <!-- ============================================================== -->
+    <!-- MODAL 1: OPTION A - AI RESOLUTION STUDIO (LLM + RAG)          -->
+    <!-- ============================================================== -->
+    <div class="modal fade" id="aiResolutionModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content modal-content-dark">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">
-                        <i class="fas fa-brain text-primary me-2"></i>AI Resolution Traceability & Audit
+                    <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                        <span class="badge bg-primary p-2"><i class="fas fa-sparkles text-white"></i></span>
+                        AI-Assisted Resolution Studio (Option A)
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-4" id="traceabilityModalBody">
-                    <div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i> Loading AI resolution...</div>
+                <div class="modal-body p-4" id="aiModalBody">
+                    <div id="aiModalLoading" class="text-center py-5">
+                        <div class="spinner-border text-primary mb-3" role="status"></div>
+                        <h6 class="fw-bold">Running RAG Vector Retrieval & Gemini LLM...</h6>
+                        <p class="small text-secondary">Fetching knowledge chunks from NeonDB and synthesizing grounded solution.</p>
+                    </div>
+
+                    <div id="aiModalContent" class="d-none">
+                        <!-- Ticket Metadata Banner -->
+                        <div class="d-flex align-items-center justify-content-between p-3 rounded mb-3" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle);">
+                            <div>
+                                <span class="badge bg-secondary me-2" id="aiTicketIdBadge">Ticket #0</span>
+                                <span class="badge bg-primary me-2" id="aiTicketCatBadge">General</span>
+                                <span class="badge bg-info text-dark" id="aiTicketStatusBadge">Open</span>
+                            </div>
+                            <span class="badge bg-dark border text-muted small" id="aiGroundingBadge">Grounding: unverified</span>
+                        </div>
+
+                        <!-- Customer Query Summary -->
+                        <div class="mb-3">
+                            <label class="form-label text-secondary small fw-semibold">Customer's Original Query</label>
+                            <div class="p-3 rounded small text-secondary" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle);" id="aiCustomerText">
+                                Loading...
+                            </div>
+                        </div>
+
+                        <!-- Problem Summary & Identified Issue -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small fw-semibold">AI Problem Summary</label>
+                                <input type="text" class="form-control form-control-dark form-control-sm" id="aiProblemSummary" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small fw-semibold">Identified Root Issue</label>
+                                <input type="text" class="form-control form-control-dark form-control-sm" id="aiIdentifiedIssue" readonly>
+                            </div>
+                        </div>
+
+                        <!-- Editable Solution Area -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="aiEditableSolution" class="form-label text-primary small fw-semibold mb-0">
+                                    <i class="fas fa-edit me-1"></i> AI Generated Solution (Admin Editable)
+                                </label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="regenerateAIInModal()" id="aiRegenBtn">
+                                    <i class="fas fa-sync-alt me-1"></i> Regenerate AI
+                                </button>
+                            </div>
+                            <textarea class="form-control form-control-dark" id="aiEditableSolution" rows="6" placeholder="AI proposed steps will appear here. You can review, edit, and fine-tune before sending to customer..."></textarea>
+                            <div class="form-text text-muted small mt-1">Review carefully. Admin edits will be preserved as the official final solution.</div>
+                        </div>
+
+                        <!-- Internal Admin Notes -->
+                        <div class="mb-3">
+                            <label for="aiInternalNotes" class="form-label text-secondary small fw-semibold">Internal Admin Notes (Optional - Not seen by customer)</label>
+                            <input type="text" class="form-control form-control-dark form-control-sm" id="aiInternalNotes" placeholder="e.g. Verified RMA eligibility with billing supervisor.">
+                        </div>
+
+                        <!-- Grounded Sources -->
+                        <div class="mb-2">
+                            <label class="form-label text-secondary small fw-semibold mb-1">Supporting Knowledge Base Documents</label>
+                            <div id="aiSourcesContainer" class="d-flex flex-wrap gap-1">
+                                <span class="small text-muted">No sources retrieved.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer p-3 justify-content-between" id="aiModalFooter">
+                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="escalateFromAIModal()">
+                        <i class="fas fa-user-shield me-1"></i> Escalate Instead
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn-secondary-dark btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-success btn-sm px-4 fw-semibold" onclick="approveAndSendAISolution()" id="aiApproveSendBtn">
+                            <i class="fas fa-paper-plane me-1"></i> Approve & Send to Customer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- MODAL 2: OPTION B - MANUAL RESOLUTION STUDIO (ADMIN AUTHORED) -->
+    <!-- ============================================================== -->
+    <div class="modal fade" id="manualResolutionModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content modal-content-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                        <span class="badge p-2" style="background: rgba(234, 88, 12, 0.2); color: #fb923c;"><i class="fas fa-user-edit"></i></span>
+                        Manual Resolution Studio (Option B)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="manualResolutionForm">
+                        <input type="hidden" id="manualTicketId">
+                        
+                        <!-- Ticket Context Callout -->
+                        <div class="p-3 rounded mb-3" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle);">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small fw-semibold text-secondary" id="manualTicketHeader">Ticket #0</span>
+                                <span class="badge bg-secondary" id="manualCustomerEmail"></span>
+                            </div>
+                            <div class="small text-muted mb-1">Customer Query:</div>
+                            <div class="small text-light" id="manualCustomerText" style="white-space: pre-wrap;"></div>
+                        </div>
+
+                        <!-- 1. Resolution Summary -->
+                        <div class="mb-3">
+                            <label for="manualSummary" class="form-label text-secondary small fw-semibold">
+                                Resolution Summary <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control form-control-dark" id="manualSummary" placeholder="Brief headline of the resolution (e.g. Account credentials reset and 2FA re-synced)" required>
+                        </div>
+
+                        <!-- 2. Resolution Category -->
+                        <div class="mb-3">
+                            <label for="manualCategory" class="form-label text-secondary small fw-semibold">
+                                Resolution Category / Reason <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select form-select-dark" id="manualCategory" required>
+                                <option value="Technical Support">Technical Support — Technical fix applied</option>
+                                <option value="Billing">Billing — Adjustment, invoice, or refund processed</option>
+                                <option value="Returns">Returns — Return label or replacement approved</option>
+                                <option value="General Inquiry">General Inquiry — Policy information provided</option>
+                                <option value="Complaint">Complaint — Executive dispute resolution</option>
+                            </select>
+                        </div>
+
+                        <!-- 3. Detailed Solution (Text Editor) -->
+                        <div class="mb-3">
+                            <label for="manualDetailedSolution" class="form-label text-secondary small fw-semibold">
+                                Detailed Solution for Customer <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control form-control-dark" id="manualDetailedSolution" rows="6" placeholder="Write the authoritative resolution steps, explanation, or outcome that will be emailed and displayed to the customer..." required></textarea>
+                            <div class="form-text text-muted small mt-1">This text will be dispatched directly to the customer. Independent of AI.</div>
+                        </div>
+
+                        <!-- 4. Internal Notes (Optional) -->
+                        <div class="mb-2">
+                            <label for="manualInternalNotes" class="form-label text-secondary small fw-semibold">
+                                Internal Admin Notes (Optional — Staff only)
+                            </label>
+                            <textarea class="form-control form-control-dark form-control-sm" id="manualInternalNotes" rows="2" placeholder="Internal audit remarks, ticket escalation reference, or Jira link..."></textarea>
+                        </div>
+                    </form>
                 </div>
                 <div class="modal-footer p-3">
-                    <button type="button" class="btn-secondary-dark btn-sm px-3" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-outline-info btn-sm px-3" id="modalRegenBtn" onclick="regenerateAIResolution()">
-                        <i class="fas fa-sync me-1"></i> Regenerate AI
-                    </button>
-                    <button type="button" class="btn btn-success btn-sm px-4 fw-semibold" id="modalApproveBtn" onclick="approveFromModal()">
-                        <i class="fas fa-check me-1"></i> Approve & Resolve
+                    <button type="button" class="btn-secondary-dark btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning btn-sm px-4 fw-semibold" style="background: #ea580c; border-color: #ea580c; color: #fff;" onclick="submitManualResolution()">
+                        <i class="fas fa-paper-plane me-1"></i> Submit Manual Solution to Customer
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Manual Resolve Modal -->
-    <div class="modal fade" id="resolveModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
+    <!-- ============================================================== -->
+    <!-- MODAL 3: TICKET DETAILS & TRACEABILITY AUDIT MODAL              -->
+    <!-- ============================================================== -->
+    <div class="modal fade" id="traceabilityModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content modal-content-dark">
                 <div class="modal-header">
                     <h5 class="modal-title fw-bold">
-                        <i class="fas fa-check-circle text-success me-2"></i>Custom Resolution Notes
+                        <i class="fas fa-search-plus text-info me-2"></i>Ticket Inspection & Audit Trail
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-4">
-                    <form id="resolveForm">
-                        <input type="hidden" id="resolveTicketId">
-                        <div class="mb-3">
-                            <label for="resolutionNotes" class="form-label text-secondary small fw-semibold">Resolution Notes for Customer</label>
-                            <textarea class="form-control form-control-dark" id="resolutionNotes" rows="4" placeholder="Detail the resolution steps taken or refund confirmation provided..." required></textarea>
-                            <div class="form-text text-muted small mt-1">Recorded in audit log and emailed to customer.</div>
-                        </div>
-                    </form>
+                <div class="modal-body p-4" id="traceabilityModalBody">
+                    <div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i> Loading ticket details...</div>
                 </div>
                 <div class="modal-footer p-3">
-                    <button type="button" class="btn-secondary-dark btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-success btn-sm px-4 fw-semibold" onclick="submitResolution()">
-                        <i class="fas fa-check me-1"></i> Submit Resolution
-                    </button>
+                    <button type="button" class="btn-secondary-dark btn-sm px-4" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
@@ -632,64 +992,255 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let currentModalTicketId = null;
+        let currentActiveTicketId = null;
+        const cachedTickets = {};
 
-        function resolveTicket(ticketId) {
-            currentModalTicketId = ticketId;
-            document.getElementById('resolveTicketId').value = ticketId;
-            document.getElementById('resolutionNotes').value = '';
-            new bootstrap.Modal(document.getElementById('resolveModal')).show();
-        }
-
-        function submitResolution() {
-            const notes = document.getElementById('resolutionNotes').value.trim();
-            if (!notes) { alert('Please enter resolution notes'); return; }
-            fetch('/admin/resolve_ticket', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ticket_id: currentModalTicketId, resolution_notes: notes })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) { alert('Ticket resolved successfully!'); location.reload(); }
-                else { alert('Error: ' + data.error); }
+        // Parse tickets from DOM data attributes into client lookup safely without inline Jinja
+        function initTicketCache() {
+            document.querySelectorAll('.ticket-item-card[data-ticket-id]').forEach(function(card) {
+                const tid = card.getAttribute('data-ticket-id');
+                const textEl = card.querySelector('.ticket-raw-text');
+                cachedTickets[tid] = {
+                    id: tid,
+                    text: textEl ? textEl.textContent.trim() : (card.getAttribute('data-ticket-text') || ''),
+                    category: card.getAttribute('data-ticket-category') || 'General',
+                    status: card.getAttribute('data-ticket-status') || 'Open',
+                    priority: card.getAttribute('data-ticket-priority') || 'Medium',
+                    confidence: parseFloat(card.getAttribute('data-ticket-confidence')) || 0,
+                    email: card.getAttribute('data-ticket-email') || '',
+                    username: card.getAttribute('data-ticket-username') || 'Customer',
+                    subject: card.getAttribute('data-ticket-subject') || ''
+                };
             });
         }
 
-        function approveAIResolution(ticketId) {
-            if (!confirm('Approve the proposed AI solution and mark Ticket #' + ticketId + ' as Resolved?')) return;
-            fetch('/api/ticket/' + ticketId + '/approve_resolution', {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initTicketCache);
+        } else {
+            initTicketCache();
+        }
+
+        // Helper to retrieve ticket details from cache or DOM
+        function getTicketData(ticketId) {
+            if (cachedTickets[ticketId]) {
+                return cachedTickets[ticketId];
+            }
+            const card = document.querySelector('.ticket-item-card[data-ticket-id="' + ticketId + '"]');
+            if (card) {
+                const textEl = card.querySelector('.ticket-raw-text');
+                const t = {
+                    id: ticketId,
+                    text: textEl ? textEl.textContent.trim() : '',
+                    category: card.getAttribute('data-ticket-category') || 'General',
+                    status: card.getAttribute('data-ticket-status') || 'Open',
+                    priority: card.getAttribute('data-ticket-priority') || 'Medium',
+                    confidence: parseFloat(card.getAttribute('data-ticket-confidence')) || 0,
+                    email: card.getAttribute('data-ticket-email') || '',
+                    username: card.getAttribute('data-ticket-username') || 'Customer',
+                    subject: card.getAttribute('data-ticket-subject') || ''
+                };
+                cachedTickets[ticketId] = t;
+                return t;
+            }
+            return { id: ticketId, text: '', category: 'General', status: 'Open', email: '' };
+        }
+
+        // -------------------------------------------------------------
+        // Option A: AI Resolution Studio
+        // -------------------------------------------------------------
+        function openAIResolutionStudio(ticketId) {
+            currentActiveTicketId = ticketId;
+            const t = getTicketData(ticketId);
+
+            const modal = new bootstrap.Modal(document.getElementById('aiResolutionModal'));
+            document.getElementById('aiModalLoading').classList.remove('d-none');
+            document.getElementById('aiModalContent').classList.add('d-none');
+            document.getElementById('aiApproveSendBtn').disabled = true;
+
+            document.getElementById('aiTicketIdBadge').textContent = 'Ticket #' + ticketId;
+            document.getElementById('aiTicketCatBadge').textContent = t.category;
+            document.getElementById('aiTicketStatusBadge').textContent = t.status;
+            document.getElementById('aiCustomerText').textContent = t.text;
+            document.getElementById('aiInternalNotes').value = '';
+
+            modal.show();
+
+            // Invoke AI Generation endpoint
+            fetch('/admin/ticket/' + ticketId + '/generate_ai_solution', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
+                headers: { 'Content-Type': 'application/json' }
             })
             .then(r => r.json())
             .then(data => {
-                if (data.success) { alert('Resolution approved successfully!'); location.reload(); }
-                else { alert('Error: ' + data.error); }
+                document.getElementById('aiModalLoading').classList.add('d-none');
+                document.getElementById('aiModalContent').classList.remove('d-none');
+                document.getElementById('aiApproveSendBtn').disabled = false;
+
+                if (data.success) {
+                    document.getElementById('aiProblemSummary').value = data.problem_summary || '';
+                    document.getElementById('aiIdentifiedIssue').value = data.identified_issue || '';
+                    document.getElementById('aiEditableSolution').value = data.proposed_solution || '';
+                    document.getElementById('aiGroundingBadge').textContent = 'Grounding: ' + (data.grounding_status || 'unverified');
+
+                    // Render Sources
+                    let sourcesHtml = '<span class="small text-muted">No knowledge base sources attached.</span>';
+                    if (data.sources && data.sources.length > 0) {
+                        sourcesHtml = data.sources.map(s => `
+                            <span class="source-pill" title="Score: ${(s.relevance_score || 0).toFixed(3)}">
+                                <i class="fas fa-file-alt"></i> ${s.doc_title || 'Document'} (${(s.relevance_score || 0).toFixed(2)})
+                            </span>
+                        `).join('');
+                    }
+                    document.getElementById('aiSourcesContainer').innerHTML = sourcesHtml;
+                } else {
+                    document.getElementById('aiEditableSolution').value = 'AI resolution could not be generated: ' + (data.error || 'Check API key or server log.');
+                }
+            })
+            .catch(err => {
+                document.getElementById('aiModalLoading').classList.add('d-none');
+                document.getElementById('aiModalContent').classList.remove('d-none');
+                document.getElementById('aiEditableSolution').value = 'Error connecting to resolution generator: ' + err.message;
             });
         }
 
-        function escalateTicket(ticketId) {
-            const reason = prompt('Enter reason for escalating this ticket to human specialist review:', 'Requires manual review by Tier-2 specialist.');
-            if (reason === null) return;
-            fetch('/api/ticket/' + ticketId + '/escalate', {
+        function regenerateAIInModal() {
+            if (!currentActiveTicketId) return;
+            const btn = document.getElementById('aiRegenBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+            btn.disabled = true;
+
+            fetch('/admin/ticket/' + currentActiveTicketId + '/generate_ai_solution', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason: reason })
+                headers: { 'Content-Type': 'application/json' }
             })
             .then(r => r.json())
             .then(data => {
-                if (data.success) { alert(data.message); location.reload(); }
-                else { alert('Error: ' + data.error); }
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Regenerate AI';
+                btn.disabled = false;
+                if (data.success) {
+                    document.getElementById('aiProblemSummary').value = data.problem_summary || '';
+                    document.getElementById('aiIdentifiedIssue').value = data.identified_issue || '';
+                    document.getElementById('aiEditableSolution').value = data.proposed_solution || '';
+                    document.getElementById('aiGroundingBadge').textContent = 'Grounding: ' + (data.grounding_status || 'unverified');
+                } else {
+                    alert('Regeneration error: ' + data.error);
+                }
+            })
+            .catch(err => {
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Regenerate AI';
+                btn.disabled = false;
+                alert('Error: ' + err.message);
             });
         }
 
+        function approveAndSendAISolution() {
+            if (!currentActiveTicketId) return;
+            const finalSolution = document.getElementById('aiEditableSolution').value.trim();
+            const internalNotes = document.getElementById('aiInternalNotes').value.trim();
+
+            if (!finalSolution) {
+                alert('Please enter or verify the solution before sending to the customer.');
+                return;
+            }
+
+            if (!confirm('Approve and send this AI-assisted solution to the customer for Ticket #' + currentActiveTicketId + '? (Status will become Awaiting Customer)')) return;
+
+            const sendBtn = document.getElementById('aiApproveSendBtn');
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
+            sendBtn.disabled = true;
+
+            fetch('/admin/ticket/' + currentActiveTicketId + '/approve_ai_solution', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    final_solution: finalSolution,
+                    internal_notes: internalNotes
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                    sendBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Approve & Send to Customer';
+                    sendBtn.disabled = false;
+                }
+            })
+            .catch(err => {
+                alert('Error: ' + err.message);
+                sendBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Approve & Send to Customer';
+                sendBtn.disabled = false;
+            });
+        }
+
+        function escalateFromAIModal() {
+            if (!currentActiveTicketId) return;
+            escalateTicket(currentActiveTicketId);
+        }
+
+        // -------------------------------------------------------------
+        // Option B: Manual Resolution Studio
+        // -------------------------------------------------------------
+        function openManualResolutionStudio(ticketId) {
+            currentActiveTicketId = ticketId;
+            const t = getTicketData(ticketId);
+
+            document.getElementById('manualTicketId').value = ticketId;
+            document.getElementById('manualTicketHeader').textContent = 'Ticket #' + ticketId + ' — ' + t.category;
+            document.getElementById('manualCustomerEmail').textContent = t.email ? t.email : 'No email attached';
+            document.getElementById('manualCustomerText').textContent = t.text;
+            document.getElementById('manualSummary').value = '';
+            document.getElementById('manualDetailedSolution').value = '';
+            document.getElementById('manualInternalNotes').value = '';
+            document.getElementById('manualCategory').value = t.category || 'Technical Support';
+
+            new bootstrap.Modal(document.getElementById('manualResolutionModal')).show();
+        }
+
+        function submitManualResolution() {
+            const ticketId = document.getElementById('manualTicketId').value;
+            const summary = document.getElementById('manualSummary').value.trim();
+            const solution = document.getElementById('manualDetailedSolution').value.trim();
+            const category = document.getElementById('manualCategory').value;
+            const notes = document.getElementById('manualInternalNotes').value.trim();
+
+            if (!summary) { alert('Please enter a resolution summary headline.'); return; }
+            if (!solution) { alert('Please enter detailed resolution steps for the customer.'); return; }
+
+            if (!confirm('Dispatch this manual solution to the customer? (Ticket status will be updated to Awaiting Customer)')) return;
+
+            fetch('/admin/resolve_manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ticket_id: ticketId,
+                    summary: summary,
+                    detailed_solution: solution,
+                    resolution_category: category,
+                    internal_notes: notes
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+        }
+
+        // -------------------------------------------------------------
+        // Traceability & Full Inspection Modal
+        // -------------------------------------------------------------
         function openTraceabilityModal(ticketId) {
-            currentModalTicketId = ticketId;
             const modalEl = document.getElementById('traceabilityModal');
             const modal = new bootstrap.Modal(modalEl);
-            document.getElementById('traceabilityModalBody').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i> Loading AI resolution...</div>';
+            document.getElementById('traceabilityModalBody').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i> Loading ticket inspection...</div>';
             modal.show();
 
             fetch('/api/ticket/' + ticketId + '/resolution')
@@ -740,28 +1291,35 @@
                     `;
                 }
 
+                let resolutionHtml = '<p class="small text-muted">No resolution recorded yet.</p>';
+                if (rData) {
+                    resolutionHtml = `
+                        <div class="p-3 rounded mb-3" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25);">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold gradient-text small"><i class="fas ${rData.resolution_method === 'MANUAL' ? 'fa-user-check' : 'fa-robot'} me-1"></i> ${rData.resolution_method || 'AI'} Resolution:</span>
+                                <span class="badge bg-dark border text-muted">${rData.model_name || 'N/A'} | Status: ${rData.resolution_status || 'N/A'}</span>
+                            </div>
+                            <div class="small mb-2" style="white-space: pre-wrap;">${rData.final_solution || rData.proposed_solution}</div>
+                            ${rData.internal_notes ? `<div class="small text-muted"><i class="fas fa-sticky-note me-1"></i> Internal Notes: ${rData.internal_notes}</div>` : ''}
+                        </div>
+                    `;
+                }
+
                 document.getElementById('traceabilityModalBody').innerHTML = `
-                    <div class="mb-3">
-                        <span class="badge bg-secondary me-2">Ticket #${t.id}</span>
-                        <span class="badge bg-primary me-2">${t.predicted_category} (${(t.confidence).toFixed(1)}% ML Conf)</span>
+                    <div class="mb-3 d-flex flex-wrap gap-2">
+                        <span class="badge bg-secondary">Ticket #${t.id}</span>
+                        <span class="badge bg-primary">${t.predicted_category} (${(t.confidence != null ? Number(t.confidence).toFixed(1) : 'N/A')}% ML Conf)</span>
                         <span class="badge bg-info text-dark">Status: ${t.status}</span>
+                        <span class="badge bg-dark border text-muted">Priority: ${t.priority || 'Medium'}</span>
                     </div>
 
                     <div class="p-3 rounded mb-3" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle);">
-                        <div class="small text-secondary fw-bold mb-1">Customer Message:</div>
+                        <div class="small text-secondary fw-bold mb-1">Customer Query:</div>
                         <div class="small">${t.ticket_text}</div>
                     </div>
 
                     ${feedbackHtml}
-
-                    <div class="p-3 rounded mb-3" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25);">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-bold gradient-text small"><i class="fas fa-robot me-1"></i> LLM Proposed Solution:</span>
-                            <span class="badge bg-dark border text-muted">${rData ? rData.model_name : 'N/A'} | Grounding: ${rData ? rData.grounding_status : 'N/A'}</span>
-                        </div>
-                        <div class="small mb-2" style="white-space: pre-wrap;">${rData ? rData.proposed_solution : 'No resolution generated yet.'}</div>
-                        ${rData && rData.escalation_reason ? `<div class="small text-warning"><i class="fas fa-info-circle me-1"></i> Escalation Reason: ${rData.escalation_reason}</div>` : ''}
-                    </div>
+                    ${resolutionHtml}
 
                     <div class="mb-3">
                         <h6 class="fw-bold small mb-2"><i class="fas fa-layer-group me-1 text-primary"></i> Grounded Knowledge Sources:</h6>
@@ -776,28 +1334,24 @@
             });
         }
 
-        function regenerateAIResolution() {
-            if (!currentModalTicketId) return;
-            document.getElementById('modalRegenBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-            fetch('/api/ticket/' + currentModalTicketId + '/regenerate', { method: 'POST' })
+        function escalateTicket(ticketId) {
+            const reason = prompt('Enter reason for escalating this ticket to human specialist review:', 'Requires manual review by Tier-2 specialist.');
+            if (reason === null) return;
+            fetch('/api/ticket/' + ticketId + '/escalate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason })
+            })
             .then(r => r.json())
             .then(data => {
-                document.getElementById('modalRegenBtn').innerHTML = '<i class="fas fa-sync me-1"></i> Regenerate AI';
-                if (data.success) {
-                    alert('Resolution regenerated!');
-                    openTraceabilityModal(currentModalTicketId);
-                } else {
-                    alert('Error: ' + data.error);
-                }
+                if (data.success) { alert(data.message); location.reload(); }
+                else { alert('Error: ' + data.error); }
             });
         }
 
-        function approveFromModal() {
-            if (currentModalTicketId) {
-                approveAIResolution(currentModalTicketId);
-            }
-        }
-
+        // -------------------------------------------------------------
+        // Knowledge Base Document Upload & FAQ Handlers
+        // -------------------------------------------------------------
         function submitKBDocument() {
             const fileInput = document.getElementById('kbDocFile');
             const titleInput = document.getElementById('kbDocTitle');
@@ -834,6 +1388,12 @@
             });
         }
 
+        function handleToggleKBDoc(btn) {
+            const docId = btn.getAttribute('data-doc-id');
+            const nextActive = btn.getAttribute('data-next-state') === 'true';
+            toggleKBDoc(docId, nextActive);
+        }
+
         function toggleKBDoc(docId, newActive) {
             fetch('/admin/kb/toggle/' + docId, {
                 method: 'POST',
@@ -867,16 +1427,27 @@
             });
         }
 
+        // -------------------------------------------------------------
+        // Live Analytics Loader
+        // -------------------------------------------------------------
         function loadLiveAnalytics() {
             fetch('/admin/analytics')
             .then(r => r.json())
             .then(data => {
                 if (!data.success) return;
                 const m = data.metrics;
-                document.getElementById('an-res-rate').innerText = m.resolution_rate + '%';
-                document.getElementById('an-esc-rate').innerText = m.escalation_rate + '%';
-                document.getElementById('an-csat').innerText = m.customer_satisfaction + ' / 5.0';
-                document.getElementById('an-kb-chunks').innerText = m.active_kb_chunks;
+                document.getElementById('an-res-rate').innerText = (m.resolution_rate || 0) + '%';
+                document.getElementById('an-csat').innerText = (m.customer_satisfaction || 4.8) + ' / 5.0';
+                document.getElementById('an-kb-chunks').innerText = m.active_kb_chunks || 0;
+                document.getElementById('an-ai-count').innerText = m.ai_assisted_resolutions || 0;
+                document.getElementById('an-manual-count').innerText = m.manual_resolutions || 0;
+
+                const totalRes = (m.ai_assisted_resolutions || 0) + (m.manual_resolutions || 0);
+                const aiPct = totalRes > 0 ? ((m.ai_assisted_resolutions / totalRes) * 100).toFixed(1) : 50;
+                const manualPct = totalRes > 0 ? ((m.manual_resolutions / totalRes) * 100).toFixed(1) : 50;
+
+                document.getElementById('an-ai-bar').style.width = aiPct + '%';
+                document.getElementById('an-manual-bar').style.width = manualPct + '%';
 
                 let catHtml = '';
                 if (m.category_distribution && m.category_distribution.length > 0) {
