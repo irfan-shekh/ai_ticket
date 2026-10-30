@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://python.org)
 [![Framework](https://img.shields.io/badge/Flask-3.1-black?style=for-the-badge&logo=flask)](https://palletsprojects.com/p/flask/)
 [![Database](https://img.shields.io/badge/NeonDB-PostgreSQL%20%2B%20pgvector-336791?style=for-the-badge&logo=postgresql)](https://neon.tech)
-[![AI Model](https://img.shields.io/badge/Google-Gemini%203.8%20Flash-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/gemini-api/docs/get-started)
+[![AI Model](https://img.shields.io/badge/Google-Gemini%203.5%20Flash-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/gemini-api/docs/get-started)
 [![Vector Search](https://img.shields.io/badge/pgvector-HNSW%20Cosine%20Search-00b4d8?style=for-the-badge)](https://github.com/pgvector/pgvector)
 [![Status](https://img.shields.io/badge/Status-Production--Ready-success?style=for-the-badge)](#)
 
@@ -19,7 +19,7 @@ Modern customer support organizations handle thousands of incoming queries daily
 **TicketAI** solves this by unifying:
 - **Calibrated Machine Learning Classification**: Low-latency LinearSVC routing with out-of-scope filtering across 5 core support categories.
 - **Retrieval-Augmented Generation (RAG)**: NeonDB pgvector semantic retrieval over company manuals, FAQs, and return policies using Google 768-dimensional embeddings.
-- **Google Gemini LLM Integration**: Factual, structured response generation (`gemini-3.8-flash` via the official Google Gen AI SDK) grounded strictly in retrieved context.
+- **Google Gemini LLM Integration**: Factual, structured response generation (`gemini-3.5-flash` via the official Google Gen AI SDK) grounded strictly in retrieved context.
 - **Multi-Stage Validation & Human Escalation**: Decouples classification confidence from resolution safety to prevent false resolutions, prompt injection attacks, and unauthorized financial promises.
 - **Verified Resolution Tracking**: Real customer feedback loops and audit logs ensuring tickets are never prematurely closed.
 
@@ -28,7 +28,7 @@ Modern customer support organizations handle thousands of incoming queries daily
 ## 🎯 2. Project Objectives
 
 - **High-Accuracy Triage**: Preserve and leverage the trained TF-IDF + Calibrated LinearSVC pipeline across 5 operational categories.
-- **Strictly Grounded AI Solutions**: Employ Google Gemini (`gemini-3.8-flash`) via the official Gen AI SDK with strict Pydantic schemas, citing document sources.
+- **Strictly Grounded AI Solutions**: Employ Google Gemini (`gemini-3.5-flash`) via the official Gen AI SDK with strict Pydantic schemas, citing document sources.
 - **Serverless PostgreSQL Vector Store**: Use NeonDB with the `pgvector` extension (v0.8.6 HNSW cosine indexing) as the single source of truth.
 - **Zero Hallucination Tolerance**: Reject queries when knowledge is insufficient and escalate ambiguous, high-risk, or policy-restricted requests to human agents.
 - **Complete Knowledge Management**: Support PDF, Markdown, and TXT document ingestion, FAQ creation, PII redaction, and deduplication.
@@ -64,7 +64,7 @@ flowchart TD
     end
 
     subgraph LLM_Gen["5. Google Gemini Grounded Generation"]
-        Filter --> GeminiClient[Google Gemini 3.8 Flash<br/>Official Google Gen AI SDK]
+        Filter --> GeminiClient[Google Gemini 3.5 Flash<br/>Official Google Gen AI SDK]
         TriageLayer --> GeminiClient
         GeminiClient -->|Structured JSON Output| PydanticValidator[Pydantic Schema Validator]
     end
@@ -97,11 +97,11 @@ flowchart TD
 | **Primary Database** | Neon Serverless PostgreSQL | Cloud PostgreSQL hosting users, tickets, feedback, and audit logs |
 | **Vector Database Extension**| PostgreSQL `pgvector` v0.8.6 | 768-dimensional vector storage with HNSW cosine distance index |
 | **Machine Learning Classifier**| Scikit-Learn 1.7.2 | Calibrated LinearSVC with dual-granularity TF-IDF FeatureUnion |
-| **Large Language Model** | Google Gemini 3.8 Flash | Official `google-genai` SDK with Pydantic structured output |
+| **Large Language Model** | Google Gemini 3.5 Flash | Official `google-genai` SDK with Pydantic structured output |
 | **Embedding Generation** | Google `text-embedding-004` | 768-dimensional normalized dense vectors with offline fallback |
 | **Document Processing** | PyPDF 6.21.4 & Markdown | PDF text extraction, heading-aware text chunker (700 tokens, 100 overlap) |
 | **Data Validation** | Pydantic 2.14.1 | Schema validation for structured AI resolutions |
-| **Frontend UI** | HTML5, CSS3, Bootstrap 5, FontAwesome | Responsive dual-theme (Dark/Light) Customer & Admin consoles |
+| **Frontend UI** | HTML5, Modern CSS Glassmorphism, Bootstrap 5 | Real-time dual filtering, Jinja server hydration, responsive customer/admin consoles |
 
 ---
 
@@ -140,9 +140,10 @@ The platform preserves the trained, high-accuracy ticket classifier serialized i
 
 ### Vector Storage in NeonDB
 - Embeddings are stored in the `knowledge_chunks` table using `vector(768)`.
-- Cosine similarity: `relevance_score = 1 - (embedding <=> query_vector)`.
-- Query filtering: Ensures only chunks from active knowledge documents (`is_active = TRUE`) are retrieved.
-- Rejection threshold: Drops chunks with low relevance scores to prevent hallucinations.
+- **HNSW Indexing & Cosine Distance**: `relevance_score = 1 - (embedding <=> query_vector)` executed directly inside PostgreSQL via pgvector.
+- **Optimized Top-K Retrieval**: Retrieves top 3 most relevant policy chunks (`top_k = 3`) to minimize token context bloat and keep generation latency under 3 seconds.
+- **Relevance Score Gating**: Chunks falling below the minimum threshold ($0.45$) are automatically discarded to prevent ungrounded hallucinations.
+- **Active Document Filtering**: Restricts retrieval strictly to currently active knowledge documents (`is_active = TRUE`).
 
 ---
 
@@ -322,7 +323,7 @@ pip install -r requirements.txt
 # Ensure your .env contains:
 # DATABASE_URL=postgresql://...
 # GEMINI_API_KEY=your_gemini_api_key
-# GEMINI_MODEL=gemini-3.8-flash
+# GEMINI_MODEL=gemini-3.5-flash
 ```
 
 ### Seeding Knowledge Base & Database Migrations
@@ -336,14 +337,14 @@ python scripts/seed_kb.py
 python app.py
 ```
 Open [http://localhost:5000](http://localhost:5000) in your browser:
-- **Customer Portal**: Register an account or log in to submit tickets and view resolution tracking.
-- **Admin Console**: Log in with your configured `ADMIN_USERNAME` and `ADMIN_PASSWORD` (set in `.env` / deployment environment variables) to view real-time triage analytics and manage knowledge base documents.
+- **Customer Portal**: Register an account or log in to submit tickets, track real-time resolution status (`Action Required`, `needs_review`, `Resolved`), submit 1–5 star satisfaction ratings, and use dual real-time filters (Status & Category).
+- **Admin Console**: Log in with your configured `ADMIN_USERNAME` and `ADMIN_PASSWORD` to review escalations, approve AI resolutions, inspect retrieval grounding sources, and upload new PDF/Markdown knowledge documents.
 
 ---
 
 ## 🧪 13. Running Tests
 
-TicketAI includes a comprehensive, 36-test automated verification suite covering classifier persistence, chunking, embeddings, prompt injection defenses, and end-to-end orchestration:
+TicketAI includes a comprehensive, 44-test automated verification suite covering classifier persistence, chunking, embeddings, prompt injection defenses, database repositories, and end-to-end orchestration:
 
 ```bash
 # Run all unit and integration tests
