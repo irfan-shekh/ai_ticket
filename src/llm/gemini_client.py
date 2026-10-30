@@ -22,7 +22,12 @@ class GeminiClient:
 
     def __init__(self, api_key: Optional[str] = None, default_model: Optional[str] = None):
         self.api_key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
-        self.default_model = (default_model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+        env_model = (os.getenv("GEMINI_MODEL") or "").strip()
+        selected_model = (default_model or env_model or "gemini-3.8-flash").strip()
+        # Automatically upgrade deprecated model names if passed in
+        if selected_model in ["gemini-2.5-flash", "models/gemini-2.5-flash"]:
+            selected_model = "gemini-3.8-flash"
+        self.default_model = selected_model
         self._client = None
         self._init_client()
 
@@ -66,6 +71,8 @@ class GeminiClient:
         - 'usage': token counts if provided by API
         """
         target_model = model or self.default_model
+        if target_model in ["gemini-2.5-flash", "models/gemini-2.5-flash"]:
+            target_model = "gemini-3.8-flash"
 
         if not self.is_available:
             raise RuntimeError(

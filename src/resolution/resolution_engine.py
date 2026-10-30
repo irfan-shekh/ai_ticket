@@ -146,7 +146,7 @@ class ResolutionEngine:
             res_id = TicketRepository.save_resolution(
                 ticket_id=ticket_id,
                 proposed_solution=formatted_solution,
-                model_name=gen_result.get("model") or "gemini-2.5-flash",
+                model_name=gen_result.get("model") or "gemini-3.8-flash",
                 problem_summary=resolution_data.get("problem_summary", ""),
                 identified_issue=resolution_data.get("identified_issue", ""),
                 resolution_status=final_status,

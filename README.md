@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://python.org)
 [![Framework](https://img.shields.io/badge/Flask-3.1-black?style=for-the-badge&logo=flask)](https://palletsprojects.com/p/flask/)
 [![Database](https://img.shields.io/badge/NeonDB-PostgreSQL%20%2B%20pgvector-336791?style=for-the-badge&logo=postgresql)](https://neon.tech)
-[![AI Model](https://img.shields.io/badge/Google-Gemini%202.5%20Flash-4285F4?style=for-the-badge&logo=google)](https://aistudio.google.com)
+[![AI Model](https://img.shields.io/badge/Google-Gemini%203.8%20Flash-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/gemini-api/docs/get-started)
 [![Vector Search](https://img.shields.io/badge/pgvector-HNSW%20Cosine%20Search-00b4d8?style=for-the-badge)](https://github.com/pgvector/pgvector)
 [![Status](https://img.shields.io/badge/Status-Production--Ready-success?style=for-the-badge)](#)
 
@@ -17,10 +17,10 @@ Modern customer support organizations handle thousands of incoming queries daily
 2. **Generic or Hallucinated Auto-Replies**: Generic chatbots often hallucinate company policies, invent refund amounts, promise unauthorized account changes, or fail to cite authoritative documentation.
 
 **TicketAI** solves this by unifying:
-- **Calibrated Machine Learning Classification**: Low-latency LinearSVC routing with out-of-scope filtering.
-- **Retrieval-Augmented Generation (RAG)**: NeonDB pgvector semantic retrieval over company manuals, FAQs, and return policies.
-- **Google Gemini LLM Integration**: Factual, structured response generation grounded strictly in retrieved context.
-- **Multi-Stage Validation & Human Escalation**: Prevention of false resolutions, prompt injection attacks, and unauthorized financial promises.
+- **Calibrated Machine Learning Classification**: Low-latency LinearSVC routing with out-of-scope filtering across 5 core support categories.
+- **Retrieval-Augmented Generation (RAG)**: NeonDB pgvector semantic retrieval over company manuals, FAQs, and return policies using Google 768-dimensional embeddings.
+- **Google Gemini LLM Integration**: Factual, structured response generation (`gemini-3.8-flash` via the official Google Gen AI SDK) grounded strictly in retrieved context.
+- **Multi-Stage Validation & Human Escalation**: Decouples classification confidence from resolution safety to prevent false resolutions, prompt injection attacks, and unauthorized financial promises.
 - **Verified Resolution Tracking**: Real customer feedback loops and audit logs ensuring tickets are never prematurely closed.
 
 ---
@@ -28,9 +28,9 @@ Modern customer support organizations handle thousands of incoming queries daily
 ## 🎯 2. Project Objectives
 
 - **High-Accuracy Triage**: Preserve and leverage the trained TF-IDF + Calibrated LinearSVC pipeline across 5 operational categories.
-- **Strictly Grounded AI Solutions**: Employ Google Gemini via the official Gen AI SDK with strict Pydantic schemas, citing document sources.
+- **Strictly Grounded AI Solutions**: Employ Google Gemini (`gemini-3.8-flash`) via the official Gen AI SDK with strict Pydantic schemas, citing document sources.
 - **Serverless PostgreSQL Vector Store**: Use NeonDB with the `pgvector` extension (v0.8.6 HNSW cosine indexing) as the single source of truth.
-- **Zero Hallucination Tolerance**: Reject queries when knowledge is insufficient and escalate ambiguous, high-risk, or legal disputes to human agents.
+- **Zero Hallucination Tolerance**: Reject queries when knowledge is insufficient and escalate ambiguous, high-risk, or policy-restricted requests to human agents.
 - **Complete Knowledge Management**: Support PDF, Markdown, and TXT document ingestion, FAQ creation, PII redaction, and deduplication.
 - **Closed-Loop Customer Verification**: Enable customers to confirm fixes or escalate unresolved issues with 1-5 star satisfaction ratings.
 
@@ -64,7 +64,7 @@ flowchart TD
     end
 
     subgraph LLM_Gen["5. Google Gemini Grounded Generation"]
-        Filter --> GeminiClient[Google Gemini 2.5 Flash<br/>Official Google Gen AI SDK]
+        Filter --> GeminiClient[Google Gemini 3.8 Flash<br/>Official Google Gen AI SDK]
         TriageLayer --> GeminiClient
         GeminiClient -->|Structured JSON Output| PydanticValidator[Pydantic Schema Validator]
     end
@@ -75,7 +75,7 @@ flowchart TD
     end
 
     subgraph Workflow["7. Decision & Status Dispatch"]
-        RiskEngine -->|High Risk / Ungrounded / Low Conf| HumanQueue[Status: needs_review<br/>Human Specialist Escalation]
+        RiskEngine -->|High Risk / Ungrounded / Low Conf| HumanQueue[Status: needs_review<br/>Specialist Agent Escalation]
         RiskEngine -->|Low Risk & Grounded & Valid| AutoRespond[Status: awaiting_customer<br/>AI Response Dispatched]
     end
 
@@ -97,7 +97,7 @@ flowchart TD
 | **Primary Database** | Neon Serverless PostgreSQL | Cloud PostgreSQL hosting users, tickets, feedback, and audit logs |
 | **Vector Database Extension**| PostgreSQL `pgvector` v0.8.6 | 768-dimensional vector storage with HNSW cosine distance index |
 | **Machine Learning Classifier**| Scikit-Learn 1.7.2 | Calibrated LinearSVC with dual-granularity TF-IDF FeatureUnion |
-| **Large Language Model** | Google Gemini 2.5 Flash | Official `google-genai` SDK with Pydantic structured output |
+| **Large Language Model** | Google Gemini 3.8 Flash | Official `google-genai` SDK with Pydantic structured output |
 | **Embedding Generation** | Google `text-embedding-004` | 768-dimensional normalized dense vectors with offline fallback |
 | **Document Processing** | PyPDF 6.21.4 & Markdown | PDF text extraction, heading-aware text chunker (700 tokens, 100 overlap) |
 | **Data Validation** | Pydantic 2.14.1 | Schema validation for structured AI resolutions |
@@ -121,7 +121,7 @@ The platform preserves the trained, high-accuracy ticket classifier serialized i
 - **Negation Preservation**: Retains crucial negation particles (`not`, `no`, `never`, `cannot`, `without`, `down`).
 - **Feature Union**: Combines word-level TF-IDF (1–2 n-grams) and character-level TF-IDF (3–5 `char_wb` n-grams) to tolerate typos.
 - **Triage Decision Layer**:
-  - Flags tickets with calibrated confidence $< 60.0\%$ for human review.
+  - Flags tickets with calibrated confidence $< 60.0\%$ for human category verification.
   - Computes top-1 vs top-2 prediction margin ($\Delta \ge 0.15$).
   - Rejects gibberish, trivia, coding queries, and out-of-scope non-customer input.
 
@@ -193,7 +193,20 @@ Tickets progress through a verifiable multi-stage lifecycle:
 
 ---
 
-## 📊 9. Database Architecture (NeonDB PostgreSQL)
+## ⚖️ 9. Classification Confidence vs. Resolution Review
+
+A core design principle of TicketAI is the separation between **Department Classification** and **Resolution Grounding**:
+
+| Dimension | Classification Confidence | Resolution Review Status |
+| :--- | :--- | :--- |
+| **Question Answered** | *Which department owns this request?* | *Can an AI solution be safely dispatched without human verification?* |
+| **Model Evaluator** | Calibrated LinearSVC (`enhanced_ticket_classifier.joblib`) | RAG Retrieval Engine + Guardrails + Gemini LLM |
+| **Example: 96% Returns** | High confidence: The ticket definitely belongs in `Returns`. | **Needs Review**: If the response is ungrounded or involves a restricted refund action, it requires specialist review. |
+| **UI Display** | Green badge & high confidence percentage. | Distinct banner displaying the specific escalation reason. |
+
+---
+
+## 📊 10. Database Architecture (NeonDB PostgreSQL)
 
 ```sql
 -- Knowledge Base Documents
@@ -272,7 +285,7 @@ CREATE TABLE ticket_events (
 
 ---
 
-## 📈 10. Evaluation Results & Empirical Benchmarks
+## 📈 11. Evaluation Results & Empirical Benchmarks
 
 Benchmarked using `src/evaluation/evaluate_system.py` against independent test samples:
 
@@ -289,12 +302,12 @@ Benchmarked using `src/evaluation/evaluate_system.py` against independent test s
 
 ---
 
-## 🚀 11. Installation & Quickstart
+## 🚀 12. Installation & Quickstart
 
 ### Prerequisites
 - Python 3.10 or higher
-- Neon Serverless PostgreSQL database URL
-- Google Gemini API key (optional for local mock testing; required for live Gemini LLM)
+- Neon Serverless PostgreSQL database connection string
+- Google Gemini API key (from [Google AI Studio](https://aistudio.google.com/))
 
 ### Setup
 ```bash
@@ -306,8 +319,10 @@ cd TicketAI
 pip install -r requirements.txt
 
 # 3. Configure environment variables
-cp .env.example .env
-# Edit .env with your DATABASE_URL and GEMINI_API_KEY
+# Ensure your .env contains:
+# DATABASE_URL=postgresql://...
+# GEMINI_API_KEY=your_gemini_api_key
+# GEMINI_MODEL=gemini-3.8-flash
 ```
 
 ### Seeding Knowledge Base & Database Migrations
@@ -320,13 +335,13 @@ python scripts/seed_kb.py
 ```bash
 python app.py
 ```
-Open [http://localhost:5000](http://localhost:5000) in your browser.
-- **Customer Portal**: Create an account or log in as a user.
-- **Admin Console**: Log in with `admin` / `admin123`.
+Open [http://localhost:5000](http://localhost:5000) in your browser:
+- **Customer Portal**: Register an account or log in to submit tickets and view resolution tracking.
+- **Admin Console**: Log in with `admin` / `admin123` to view real-time triage analytics and manage knowledge base documents.
 
 ---
 
-## 🧪 12. Running Tests
+## 🧪 13. Running Tests
 
 TicketAI includes a comprehensive, 36-test automated verification suite covering classifier persistence, chunking, embeddings, prompt injection defenses, and end-to-end orchestration:
 
@@ -337,26 +352,9 @@ python -m unittest discover tests
 
 ---
 
-## ⚖️ 13. System Distinctions
-
-```mermaid
-graph LR
-    A[Ticket Classification] -->|Predicts Category & Confidence| B[RAG Retrieval]
-    B -->|Fetches Relevant Knowledge Chunks| C[LLM Generation]
-    C -->|Synthesizes Grounded Steps| D[Verified Resolution]
-    D -->|Requires Customer or Agent Confirmation| E[(NeonDB)]
-```
-
-- **Ticket Classification**: Identifies *what kind of problem* the customer has (e.g. Billing vs Technical Support).
-- **RAG Retrieval**: Finds *authoritative company documents* relevant to that specific problem.
-- **LLM Response Generation**: Formulates *step-by-step guidance* derived strictly from those documents.
-- **Verified Ticket Resolution**: Validates that the customer's issue was *actually fixed*, recorded through real customer feedback or agent review.
-
----
-
 ## 🔒 14. Security & Limitations
 
 - **Rate Limiting**: AI regeneration endpoints are protected against rapid re-invocations.
 - **Zero Local Fallback to SQLite**: All records persist exclusively in NeonDB cloud PostgreSQL.
 - **API Key Confidentiality**: All credentials reside in environment variables and are never surfaced in client code or browser logs.
-- **Limitations**: In offline or sandboxed environments without active Google Gen AI API keys, the system gracefully falls back to deterministic vector hashing and flags resolutions for human review.
+- **Graceful Offline Fallback**: In test environments without active Google Gen AI network access, the system falls back to deterministic vector hashing and safely flags resolutions for human review.

@@ -3,23 +3,23 @@
 # Python >= 3.10
 # =============================================================================
 
-# --- Core Web Framework & Security ---
+# --- Core Web Framework & Configuration ---
 Flask>=3.0.0
 Werkzeug>=3.0.0
 python-dotenv>=1.0.0
 pydantic>=2.0.0
 
-# --- Database Drivers & Vector Extension (PostgreSQL / NeonDB + pgvector) ---
+# --- Database Drivers & Vector Storage (NeonDB PostgreSQL + pgvector) ---
 psycopg2-binary>=2.9.9
 pgvector>=0.2.4
 
-# --- Google Gemini LLM & Vector Embeddings ---
+# --- Google Gemini LLM & Vector Embeddings (Official Google Gen AI SDK) ---
 google-genai>=2.0.0
 
 # --- Knowledge Base & Document Ingestion ---
 pypdf>=4.0.0
 
-# --- Machine Learning, NLP & Inference Pipeline ---
+# --- Machine Learning, NLP & Feature Extraction ---
 scikit-learn>=1.4.0
 scipy>=1.11.0
 numpy>=1.26.0
@@ -27,7 +27,7 @@ joblib>=1.3.0
 nltk>=3.8.1
 threadpoolctl>=3.2.0
 
-# --- Data Manipulation & Benchmarking ---
+# --- Data Manipulation & Date Utilities ---
 pandas>=2.0.0
 python-dateutil>=2.8.2
 pytz>=2023.3
