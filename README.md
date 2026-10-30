@@ -1,12 +1,15 @@
 # TicketAI — Intelligent Customer Support Automation Platform
 ### Machine Learning Classification • Retrieval-Augmented Generation (RAG) • NeonDB pgvector • Google Gemini • Automated Resolution
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-ticketai--seven.vercel.app-000000?style=for-the-badge&logo=vercel)](https://ticketai-seven.vercel.app)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://python.org)
 [![Framework](https://img.shields.io/badge/Flask-3.1-black?style=for-the-badge&logo=flask)](https://palletsprojects.com/p/flask/)
 [![Database](https://img.shields.io/badge/NeonDB-PostgreSQL%20%2B%20pgvector-336791?style=for-the-badge&logo=postgresql)](https://neon.tech)
 [![AI Model](https://img.shields.io/badge/Google-Gemini%203.5%20Flash-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/gemini-api/docs/get-started)
 [![Vector Search](https://img.shields.io/badge/pgvector-HNSW%20Cosine%20Search-00b4d8?style=for-the-badge)](https://github.com/pgvector/pgvector)
 [![Status](https://img.shields.io/badge/Status-Production--Ready-success?style=for-the-badge)](#)
+
+> 🌐 **Live Demo URL**: [https://ticketai-seven.vercel.app](https://ticketai-seven.vercel.app)
 
 ---
 
@@ -332,7 +335,13 @@ pip install -r requirements.txt
 python scripts/seed_kb.py
 ```
 
-### Running the Application
+### Accessing & Running the Application
+
+#### 🌐 Live Production Demo
+Access the live deployment on Vercel:
+- **URL**: [https://ticketai-seven.vercel.app](https://ticketai-seven.vercel.app)
+
+#### 💻 Local Development
 ```bash
 python app.py
 ```
