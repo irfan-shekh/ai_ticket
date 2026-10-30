@@ -206,6 +206,10 @@ class DatabaseManager:
         if not db_url:
             raise RuntimeError("DATABASE_URL is not set. Please configure NeonDB connection string in .env.")
 
+        # Re-initialize pool if not active
+        if self._pool is None:
+            self._init_pool()
+
         if self._pool:
             try:
                 raw_conn = self._pool.getconn()
@@ -215,7 +219,18 @@ class DatabaseManager:
                 return PGConnectionWrapper(raw_conn, pool=self._pool)
             except Exception as e:
                 logger.warning(f"Re-initializing connection from pool due to: {e}")
+                try:
+                    self._pool.closeall()
+                except Exception:
+                    pass
                 self._pool = None
+                self._init_pool()
+                if self._pool:
+                    try:
+                        raw_conn = self._pool.getconn()
+                        return PGConnectionWrapper(raw_conn, pool=self._pool)
+                    except Exception:
+                        pass
 
         # Fallback to direct connection if pool exhausted or reconnecting
         raw_conn = psycopg2.connect(db_url, connect_timeout=10)

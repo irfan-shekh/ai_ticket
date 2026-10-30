@@ -62,14 +62,12 @@ try:
 except Exception:
     pass
 
-for _item, _pkg in [('corpora/stopwords', 'stopwords'), ('corpora/wordnet', 'wordnet')]:
+# Check NLTK data path gracefully without blocking server startup on network downloads
+for _item in ['corpora/stopwords', 'corpora/wordnet']:
     try:
         nltk.data.find(_item)
     except LookupError:
-        try:
-            nltk.download(_pkg, download_dir=nltk_data_dir, quiet=True)
-        except Exception as _e:
-            print(f"Notice: Optional NLTK resource {_pkg} download skipped: {_e}")
+        pass
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(
@@ -120,7 +118,13 @@ try:
 except Exception:
     stop_words = {'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are'}
 
-lemmatizer = WordNetLemmatizer()
+try:
+    nltk.data.find('corpora/wordnet')
+    lemmatizer = WordNetLemmatizer()
+    has_wordnet = True
+except Exception:
+    lemmatizer = None
+    has_wordnet = False
 
 # Triage and Out-of-Scope Decision Layer
 from models.triage_decision_layer import get_default_triage_layer, TriageDecisionLayer
@@ -160,9 +164,12 @@ def preprocess_text(text):
     cleaned_tokens = []
     for token in tokens:
         if token not in stop_words and len(token) > 1:
-            try:
-                lemmatized = lemmatizer.lemmatize(token)
-            except Exception:
+            if has_wordnet and lemmatizer:
+                try:
+                    lemmatized = lemmatizer.lemmatize(token)
+                except Exception:
+                    lemmatized = token
+            else:
                 lemmatized = token
             cleaned_tokens.append(lemmatized)
             
@@ -234,32 +241,41 @@ def load_production_model():
 load_production_model()
 
 
-def send_email(to_email, subject, html_body):
-    """Send email notification"""
+def _async_send_email_worker(to_email, subject, html_body, cfg):
+    """Worker to deliver SMTP email without blocking HTTP worker threads"""
     try:
-        # Create message
         msg = MIMEMultipart()
-        msg['From'] = app.config['EMAIL_USER']
+        msg['From'] = cfg['EMAIL_USER']
         msg['To'] = to_email
         msg['Subject'] = subject
-        
-        # Attach HTML body
         msg.attach(MIMEText(html_body, 'html'))
         
-        # Connect to server and send email
-        server = smtplib.SMTP(app.config['SMTP_SERVER'], app.config['SMTP_PORT'])
+        server = smtplib.SMTP(cfg['SMTP_SERVER'], cfg['SMTP_PORT'], timeout=4)
         server.starttls()
-        server.login(app.config['EMAIL_USER'], app.config['EMAIL_PASSWORD'])
-        
-        text = msg.as_string()
-        server.sendmail(app.config['EMAIL_USER'], to_email, text)
+        server.login(cfg['EMAIL_USER'], cfg['EMAIL_PASSWORD'])
+        server.sendmail(cfg['EMAIL_USER'], to_email, msg.as_string())
         server.quit()
-        
-        return True
-        
     except Exception as e:
-        print(f"Error sending email: {e}")
+        logger.warning(f"Asynchronous email dispatch to {to_email} skipped/failed: {e}")
+
+def send_email(to_email, subject, html_body):
+    """Send email notification in background thread so HTTP requests are never blocked"""
+    user = app.config.get('EMAIL_USER')
+    pw = app.config.get('EMAIL_PASSWORD')
+    if not user or not pw:
         return False
+    
+    cfg = {
+        'EMAIL_USER': user,
+        'EMAIL_PASSWORD': pw,
+        'SMTP_SERVER': app.config.get('SMTP_SERVER', 'smtp.gmail.com'),
+        'SMTP_PORT': app.config.get('SMTP_PORT', 587)
+    }
+    
+    import threading
+    t = threading.Thread(target=_async_send_email_worker, args=(to_email, subject, html_body, cfg), daemon=True)
+    t.start()
+    return True
 
 def send_ticket_creation_email(to_email, ticket_id, category, ticket_text, confidence):
     """Send email notification for ticket creation"""
@@ -733,11 +749,8 @@ def dashboard():
     # Convert Row objects to dictionaries for JSON serialization
     tickets_dict = rows_to_dict_list(tickets)
     
-    # Attach AI resolution and feedback state for each ticket
-    for t in tickets_dict:
-        t['resolution'] = TicketRepository.get_latest_resolution(t['id'])
-        fb = db.execute('SELECT * FROM ticket_feedback WHERE ticket_id = ? ORDER BY created_at DESC LIMIT 1', (t['id'],)).fetchone()
-        t['feedback'] = row_to_dict(fb) if fb else None
+    # Attach AI resolution and feedback state for each ticket (via fast batch fetch)
+    TicketRepository.batch_attach_ticket_details(tickets_dict, include_feedback=True)
 
     db.close()
     
@@ -807,15 +820,12 @@ def admin_dashboard():
         tickets = db.execute(query, tuple(params)).fetchall()
         tickets_dict = [dict(t) for t in tickets] if tickets else []
         
-        # Load KB documents for Knowledge Base Manager tab
+        # Load KB documents for Knowledge Base Manager tab (chunk_count pre-joined)
         kb_docs = KnowledgeRepository.list_documents(active_only=False)
-        for doc in kb_docs:
-            doc['chunk_count'] = KnowledgeRepository.get_document_chunk_count(doc['id'])
 
-    # Attach latest AI/Manual resolutions and events to tickets
+    # Attach latest AI/Manual resolutions and events to tickets (via single batch query)
+    TicketRepository.batch_attach_ticket_details(tickets_dict, include_events=True)
     for t in tickets_dict:
-        t['resolution'] = TicketRepository.get_latest_resolution(t['id'])
-        t['events'] = TicketRepository.get_events(t['id'])
         # Default priority if empty
         if not t.get('priority'):
             t['priority'] = 'High' if t.get('needs_human_review') or float(t.get('confidence', 100)) < 60.0 else 'Medium'
@@ -1093,38 +1103,54 @@ def generate_ai_solution_api(ticket_id):
     if not ticket:
         return jsonify({'error': f'Ticket #{ticket_id} not found'}), 404
 
-    from src.resolution.resolution_engine import ResolutionEngine
-    res_engine = ResolutionEngine()
-    result = res_engine.process_ticket(
-        ticket_id=ticket_id,
-        customer_message=ticket['ticket_text'],
-        predicted_category=ticket['predicted_category'],
-        confidence=float(ticket['confidence']),
-        is_out_of_scope=bool(ticket.get('is_out_of_scope', 0)),
-        needs_human_review_flag=bool(ticket.get('needs_human_review', 0)),
-        review_reason=ticket.get('review_reason', '')
-    )
+    try:
+        from src.resolution.resolution_engine import ResolutionEngine
+        res_engine = ResolutionEngine()
+        result = res_engine.process_ticket(
+            ticket_id=ticket_id,
+            customer_message=ticket['ticket_text'],
+            predicted_category=ticket['predicted_category'],
+            confidence=float(ticket['confidence']),
+            is_out_of_scope=bool(ticket.get('is_out_of_scope', 0)),
+            needs_human_review_flag=bool(ticket.get('needs_human_review', 0)),
+            review_reason=ticket.get('review_reason', '')
+        )
 
-    r_data = result.get('resolution_data', {})
-    proposed = r_data.get('proposed_solution', [])
-    if isinstance(proposed, list):
-        formatted_proposed = "\n".join(f"{i+1}. {s}" for i, s in enumerate(proposed))
-    else:
-        formatted_proposed = str(proposed)
+        r_data = result.get('resolution_data', {})
+        proposed = r_data.get('proposed_solution', [])
+        if isinstance(proposed, list):
+            formatted_proposed = "\n".join(f"{i+1}. {s}" for i, s in enumerate(proposed))
+        else:
+            formatted_proposed = str(proposed)
 
-    return jsonify({
-        'success': True,
-        'message': 'AI proposed solution generated successfully.',
-        'problem_summary': r_data.get('problem_summary', ''),
-        'identified_issue': r_data.get('identified_issue', ''),
-        'proposed_solution': formatted_proposed,
-        'grounding_status': r_data.get('grounding_status', 'unverified'),
-        'requires_human_review': r_data.get('requires_human_review', False),
-        'escalation_reason': r_data.get('escalation_reason', ''),
-        'sources': result.get('retrieved_documents', []),
-        'model_name': r_data.get('model_name', 'gemini-3.8-flash'),
-        'suggested_status': result.get('status')
-    })
+        return jsonify({
+            'success': True,
+            'message': 'AI proposed solution generated successfully.',
+            'problem_summary': r_data.get('problem_summary', ''),
+            'identified_issue': r_data.get('identified_issue', ''),
+            'proposed_solution': formatted_proposed,
+            'grounding_status': r_data.get('grounding_status', 'unverified'),
+            'requires_human_review': r_data.get('requires_human_review', False),
+            'escalation_reason': r_data.get('escalation_reason', ''),
+            'sources': result.get('retrieved_documents', []),
+            'model_name': r_data.get('model_name', 'gemini-3.5-flash'),
+            'suggested_status': result.get('status')
+        })
+    except Exception as e:
+        logger.error(f"Error generating AI solution for Ticket #{ticket_id}: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate solution: {str(e)}',
+            'problem_summary': 'Automated generation encountered an error.',
+            'identified_issue': 'Requires manual assessment.',
+            'proposed_solution': 'Could not automatically generate steps. Please enter resolution notes manually.',
+            'grounding_status': 'ungrounded',
+            'requires_human_review': True,
+            'escalation_reason': str(e),
+            'sources': [],
+            'model_name': 'error-fallback',
+            'suggested_status': 'needs_review'
+        }), 200
 
 @app.route('/admin/ticket/<int:ticket_id>/approve_ai_solution', methods=['POST'])
 def approve_ai_solution_api(ticket_id):
@@ -1432,9 +1458,6 @@ def list_knowledge_base_api():
 
     category = request.args.get('category')
     docs = KnowledgeRepository.list_documents(active_only=False, category=category)
-    for d in docs:
-        d['chunk_count'] = KnowledgeRepository.get_document_chunk_count(d['id'])
-
     return jsonify({'success': True, 'documents': docs, 'total': len(docs)})
 
 

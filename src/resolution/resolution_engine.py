@@ -55,24 +55,53 @@ class ResolutionEngine:
         )
 
         # 2. RAG Semantic Retrieval
-        retrieval_result = self.rag_pipeline.retrieve_context_for_ticket(
-            ticket_text=customer_message,
-            predicted_category=predicted_category,
-            top_k=5,
-            relevance_threshold=None
-        )
-        retrieved_docs = retrieval_result["documents"]
-        has_sufficient_context = retrieval_result["has_sufficient_context"]
+        try:
+            retrieval_result = self.rag_pipeline.retrieve_context_for_ticket(
+                ticket_text=customer_message,
+                predicted_category=predicted_category,
+                top_k=3,
+                relevance_threshold=None
+            )
+            retrieved_docs = retrieval_result.get("documents", [])
+            has_sufficient_context = retrieval_result.get("has_sufficient_context", False)
+        except Exception as e:
+            logger.warning(f"RAG retrieval warning for Ticket #{ticket_id}: {e}")
+            retrieval_result = {"documents": [], "has_sufficient_context": False, "top_relevance_score": 0.0, "rejection_reason": str(e)}
+            retrieved_docs = []
+            has_sufficient_context = False
 
         # 3. LLM Structured Generation
-        gen_result = self.resolution_generator.generate_resolution(
-            ticket_id=ticket_id,
-            customer_message=customer_message,
-            predicted_category=predicted_category,
-            classification_confidence=confidence,
-            retrieved_documents=retrieved_docs,
-            risk_assessment=risk["risk_reason"]
-        )
+        try:
+            gen_result = self.resolution_generator.generate_resolution(
+                ticket_id=ticket_id,
+                customer_message=customer_message,
+                predicted_category=predicted_category,
+                classification_confidence=confidence,
+                retrieved_documents=retrieved_docs,
+                risk_assessment=risk["risk_reason"]
+            )
+        except Exception as e:
+            logger.warning(f"Resolution generator warning for Ticket #{ticket_id}: {e}")
+            gen_result = {
+                "success": False,
+                "data": {
+                    "problem_summary": f"Inquiry regarding {predicted_category}",
+                    "predicted_category": predicted_category,
+                    "identified_issue": "General inquiry",
+                    "proposed_solution": [
+                        "We have received your ticket and routed it to our support specialists.",
+                        "An agent will review the request and follow up shortly."
+                    ],
+                    "retrieved_sources": [],
+                    "grounding_status": "ungrounded",
+                    "requires_human_review": True,
+                    "escalation_reason": "AI generation deferred to human specialist.",
+                    "suggested_ticket_status": "needs_review"
+                },
+                "latency_ms": 0.0,
+                "model": "fallback",
+                "usage": {}
+            }
 
         resolution_data = gen_result.get("data", {})
 
@@ -146,7 +175,7 @@ class ResolutionEngine:
             res_id = TicketRepository.save_resolution(
                 ticket_id=ticket_id,
                 proposed_solution=formatted_solution,
-                model_name=gen_result.get("model") or "gemini-3.8-flash",
+                model_name=gen_result.get("model") or "gemini-3.5-flash",
                 problem_summary=resolution_data.get("problem_summary", ""),
                 identified_issue=resolution_data.get("identified_issue", ""),
                 resolution_status=final_status,

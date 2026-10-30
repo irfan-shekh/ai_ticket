@@ -89,15 +89,41 @@ class TicketOrchestrator:
 
         # 3. RAG Retrieval + LLM Generation + Automated Resolution Engine
         clean_ml_review_reason = review_reason if (review_reason and not review_reason.lower().startswith("none")) else ""
-        resolution_result = self.resolution_engine.process_ticket(
-            ticket_id=ticket_id,
-            customer_message=raw_text,
-            predicted_category=predicted_cat,
-            confidence=confidence,
-            is_out_of_scope=is_oos,
-            needs_human_review_flag=needs_review,
-            review_reason=clean_ml_review_reason
-        )
+        try:
+            resolution_result = self.resolution_engine.process_ticket(
+                ticket_id=ticket_id,
+                customer_message=raw_text,
+                predicted_category=predicted_cat,
+                confidence=confidence,
+                is_out_of_scope=is_oos,
+                needs_human_review_flag=needs_review,
+                review_reason=clean_ml_review_reason
+            )
+        except Exception as e:
+            logger.error(f"Resolution engine encountered an error for Ticket #{ticket_id}: {e}", exc_info=True)
+            resolution_result = {
+                "ticket_id": ticket_id,
+                "resolution_id": None,
+                "status": "needs_review",
+                "requires_human_review": True,
+                "escalation_reason": "AI resolution queued for specialist review.",
+                "resolution_data": {
+                    "problem_summary": f"Inquiry regarding {predicted_cat}",
+                    "predicted_category": predicted_cat,
+                    "identified_issue": "Customer ticket received",
+                    "proposed_solution": [
+                        f"Your ticket #{ticket_id} has been classified and received by support.",
+                        "A specialist will review your request and follow up shortly."
+                    ],
+                    "grounding_status": "ungrounded",
+                    "requires_human_review": True,
+                    "escalation_reason": "Queued for specialist review."
+                },
+                "retrieved_documents": [],
+                "latency_ms": 0.0,
+                "validation_passed": False,
+                "validation_issues": [str(e)]
+            }
 
         return {
             "ticket_id": ticket_id,
@@ -108,12 +134,12 @@ class TicketOrchestrator:
             "is_out_of_scope": is_oos,
             "ml_needs_review": needs_review,
             "ml_review_reason": review_reason,
-            "needs_human_review": resolution_result["requires_human_review"],
-            "review_reason": resolution_result["escalation_reason"],
-            "status": resolution_result["status"],
+            "needs_human_review": resolution_result.get("requires_human_review", True),
+            "review_reason": resolution_result.get("escalation_reason", ""),
+            "status": resolution_result.get("status", "Open"),
             "top_predictions": top_predictions,
-            "resolution": resolution_result["resolution_data"],
-            "sources": resolution_result["retrieved_documents"],
+            "resolution": resolution_result.get("resolution_data", {}),
+            "sources": resolution_result.get("retrieved_documents", []),
             "latency_ms": resolution_result.get("latency_ms", 0.0),
             "success": True
         }

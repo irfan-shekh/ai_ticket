@@ -32,14 +32,19 @@ class KnowledgeRepository:
 
     @staticmethod
     def list_documents(active_only: bool = True, category: Optional[str] = None) -> List[Dict[str, Any]]:
-        query = "SELECT * FROM knowledge_documents WHERE 1=1"
+        query = """
+            SELECT d.*, COALESCE(COUNT(c.id), 0) AS chunk_count 
+            FROM knowledge_documents d 
+            LEFT JOIN knowledge_chunks c ON d.id = c.document_id 
+            WHERE 1=1
+        """
         params = []
         if active_only:
-            query += " AND is_active = TRUE"
+            query += " AND d.is_active = TRUE"
         if category and category.lower() != "all":
-            query += " AND category = %s"
+            query += " AND d.category = %s"
             params.append(category)
-        query += " ORDER BY created_at DESC"
+        query += " GROUP BY d.id ORDER BY d.created_at DESC"
 
         with get_db() as db:
             rows = db.execute(query, tuple(params)).fetchall()
@@ -168,6 +173,116 @@ class TicketRepository:
     """Manages tickets, resolutions, feedback, and audit events."""
 
     @staticmethod
+    def batch_attach_ticket_details(tickets: List[Dict[str, Any]], include_events: bool = False, include_feedback: bool = False):
+        """
+        Batch loads latest resolutions, feedback, and events for multiple tickets in 1-2 queries.
+        Completely eliminates N+1 database roundtrip delays across NeonDB.
+        """
+        if not tickets:
+            return
+        ticket_ids = [t['id'] for t in tickets if t.get('id')]
+        if not ticket_ids:
+            return
+
+        with get_db() as db:
+            # 1. Fetch latest resolution for all tickets in 1 query
+            try:
+                res_rows = db.execute(
+                    """
+                    SELECT DISTINCT ON (ticket_id) *
+                    FROM ticket_resolutions
+                    WHERE ticket_id = ANY(%s)
+                    ORDER BY ticket_id, created_at DESC;
+                    """,
+                    (ticket_ids,)
+                ).fetchall()
+                res_map = {r['ticket_id']: dict(r) for r in res_rows} if res_rows else {}
+            except Exception:
+                res_map = {}
+
+            # Fetch sources for the latest resolutions if any in 1 batch query
+            if res_map:
+                res_ids = [r['id'] for r in res_map.values() if r.get('id')]
+                if res_ids:
+                    try:
+                        src_rows = db.execute(
+                            """
+                            SELECT s.*, d.title as doc_title
+                            FROM ticket_resolution_sources s
+                            LEFT JOIN knowledge_documents d ON s.document_id = d.id
+                            WHERE s.resolution_id = ANY(%s);
+                            """,
+                            (res_ids,)
+                        ).fetchall()
+                        if src_rows:
+                            for s in src_rows:
+                                s_dict = dict(s)
+                                rid = s_dict['resolution_id']
+                                for r in res_map.values():
+                                    if r.get('id') == rid:
+                                        if 'sources' not in r:
+                                            r['sources'] = []
+                                        r['sources'].append(s_dict)
+                    except Exception:
+                        pass
+
+            # 2. Fetch feedback in 1 query if requested
+            fb_map = {}
+            if include_feedback:
+                try:
+                    fb_rows = db.execute(
+                        """
+                        SELECT DISTINCT ON (ticket_id) *
+                        FROM ticket_feedback
+                        WHERE ticket_id = ANY(%s)
+                        ORDER BY ticket_id, created_at DESC;
+                        """,
+                        (ticket_ids,)
+                    ).fetchall()
+                    fb_map = {f['ticket_id']: dict(f) for f in fb_rows} if fb_rows else {}
+                except Exception:
+                    fb_map = {}
+
+            # 3. Fetch audit events in 1 query if requested
+            ev_map = {}
+            if include_events:
+                try:
+                    ev_rows = db.execute(
+                        """
+                        SELECT *
+                        FROM ticket_events
+                        WHERE ticket_id = ANY(%s)
+                        ORDER BY created_at DESC;
+                        """,
+                        (ticket_ids,)
+                    ).fetchall()
+                    if ev_rows:
+                        for e in ev_rows:
+                            e_dict = dict(e)
+                            tid = e_dict['ticket_id']
+                            if tid not in ev_map:
+                                ev_map[tid] = []
+                            ev_map[tid].append(e_dict)
+                except Exception:
+                    ev_map = {}
+
+            # Assign to each ticket in memory
+            for t in tickets:
+                t['resolution'] = res_map.get(t['id'])
+                if include_feedback:
+                    t['feedback'] = fb_map.get(t['id'])
+                if include_events:
+                    t['events'] = ev_map.get(t['id'], [])
+                # Ensure resolved_at is populated when a resolution exists
+                if not t.get('resolved_at'):
+                    if t.get('resolution') and t['resolution'].get('sent_at'):
+                        t['resolved_at'] = t['resolution']['sent_at']
+                    elif t.get('resolution') and t['resolution'].get('created_at'):
+                        t['resolved_at'] = t['resolution']['created_at']
+                    elif t.get('status') in ['Resolved', 'awaiting_customer'] or t.get('resolution_notes'):
+                        t['resolved_at'] = t.get('created_at')
+
+    @staticmethod
     def get_ticket(ticket_id: int) -> Optional[Dict[str, Any]]:
         with get_db() as db:
             row = db.execute(
@@ -188,7 +303,13 @@ class TicketRepository:
             curr = db.execute("SELECT status FROM tickets WHERE id = %s;", (ticket_id,)).fetchone()
             old_status = curr["status"] if curr else ""
 
-            db.execute("UPDATE tickets SET status = %s WHERE id = %s;", (new_status, ticket_id))
+            if new_status in ["Resolved", "awaiting_customer"]:
+                db.execute("UPDATE tickets SET status = %s, resolved_at = COALESCE(resolved_at, CURRENT_TIMESTAMP) WHERE id = %s;", (new_status, ticket_id))
+            elif new_status in ["Open", "reopened"]:
+                db.execute("UPDATE tickets SET status = %s, resolved_at = NULL WHERE id = %s;", (new_status, ticket_id))
+            else:
+                db.execute("UPDATE tickets SET status = %s WHERE id = %s;", (new_status, ticket_id))
+
             # Log event
             db.execute(
                 """
@@ -300,6 +421,7 @@ class TicketRepository:
                     resolution_method = 'MANUAL',
                     resolved_by = %s,
                     resolution_notes = %s,
+                    resolved_at = CURRENT_TIMESTAMP,
                     needs_human_review = 0
                 WHERE id = %s;
                 """,
@@ -359,7 +481,7 @@ class TicketRepository:
                         ticket_id, problem_summary, proposed_solution, final_solution,
                         model_name, resolution_status, requires_human_review, grounding_status,
                         resolution_method, admin_id, internal_notes, sent_at
-                    ) VALUES (%s, 'Approved AI Resolution', %s, %s, 'gemini-3.8-flash', 'awaiting_customer', FALSE, 'approved_by_admin', 'AI', %s, %s, CURRENT_TIMESTAMP);
+                    ) VALUES (%s, 'Approved AI Resolution', %s, %s, 'gemini-3.5-flash', 'awaiting_customer', FALSE, 'approved_by_admin', 'AI', %s, %s, CURRENT_TIMESTAMP);
                     """,
                     (ticket_id, final_solution.strip(), final_solution.strip(), admin_id, internal_notes.strip())
                 )
@@ -371,6 +493,7 @@ class TicketRepository:
                     resolution_method = 'AI',
                     resolved_by = %s,
                     resolution_notes = %s,
+                    resolved_at = CURRENT_TIMESTAMP,
                     needs_human_review = 0
                 WHERE id = %s;
                 """,

@@ -150,13 +150,16 @@
         [data-theme="light"] .dropdown-menu-dark {
             background-color: #ffffff !important;
             border: 1px solid rgba(0, 0, 0, 0.12) !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12) !important;
         }
         [data-theme="light"] .dropdown-item {
             color: #334155 !important;
         }
-        [data-theme="light"] .dropdown-item:hover {
+        [data-theme="light"] .dropdown-item:hover,
+        [data-theme="light"] .dropdown-item.active {
             background: rgba(99, 102, 241, 0.1) !important;
             color: var(--primary) !important;
+            font-weight: 600;
         }
 
         @media (max-width: 992px) {
@@ -262,7 +265,7 @@
                                         <i class="fas fa-ticket-alt"></i>
                                     </div>
                                 </div>
-                                <h3 class="fw-bold mb-0" id="total-tickets">0</h3>
+                                <h3 class="fw-bold mb-0" id="total-tickets">{{ tickets|length }}</h3>
                             </div>
                         </div>
                         <div class="col-md-3 col-6">
@@ -273,7 +276,7 @@
                                         <i class="fas fa-clock"></i>
                                     </div>
                                 </div>
-                                <h3 class="fw-bold text-warning mb-0" id="open-tickets">0</h3>
+                                <h3 class="fw-bold text-warning mb-0" id="open-tickets">{{ tickets|rejectattr('status', 'equalto', 'Resolved')|list|length }}</h3>
                             </div>
                         </div>
                         <div class="col-md-3 col-6">
@@ -284,7 +287,7 @@
                                         <i class="fas fa-check-circle"></i>
                                     </div>
                                 </div>
-                                <h3 class="fw-bold text-success mb-0" id="resolved-tickets">0</h3>
+                                <h3 class="fw-bold text-success mb-0" id="resolved-tickets">{{ tickets|selectattr('status', 'equalto', 'Resolved')|list|length }}</h3>
                             </div>
                         </div>
                         <div class="col-md-3 col-6">
@@ -295,7 +298,17 @@
                                         <i class="fas fa-chart-line"></i>
                                     </div>
                                 </div>
-                                <h3 class="fw-bold gradient-text-cyan mb-0" id="avg-confidence">0%</h3>
+                                <h3 class="fw-bold gradient-text-cyan mb-0" id="avg-confidence">
+                                    {% if tickets %}
+                                        {% set conf_sum = namespace(total=0) %}
+                                        {% for t in tickets %}
+                                            {% set conf_sum.total = conf_sum.total + (t.confidence|float) %}
+                                        {% endfor %}
+                                        {{ "%.1f"|format(conf_sum.total / (tickets|length)) }}%
+                                    {% else %}
+                                        0.0%
+                                    {% endif %}
+                                </h3>
                             </div>
                         </div>
                     </div>
@@ -309,7 +322,83 @@
                             </button>
                         </div>
                         <div id="recent-tickets-list">
-                            <!-- Populated dynamically via JS -->
+                            {% if tickets %}
+                                {% for ticket in tickets[:5] %}
+                                    <div class="ticket-card mb-3 
+                                        {% if ticket.predicted_category == 'Technical Support' %}ticket-tech
+                                        {% elif ticket.predicted_category == 'Returns' %}ticket-returns
+                                        {% elif ticket.predicted_category == 'Billing' %}ticket-billing
+                                        {% elif ticket.predicted_category == 'General Inquiry' %}ticket-inquiry
+                                        {% else %}ticket-complaint{% endif %}">
+                                        <div class="row align-items-start g-3">
+                                            <div class="col-lg-8">
+                                                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                                    <span class="fw-bold ticket-title">Ticket #{{ ticket.id }}</span>
+                                                    {% if ticket.status == 'Resolved' %}
+                                                        <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                                            <i class="fas fa-check-circle me-1"></i> Resolved
+                                                        </span>
+                                                    {% elif ticket.status == 'awaiting_customer' %}
+                                                        <span class="badge rounded-pill" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 0.72rem; border: 1px solid rgba(56, 189, 248, 0.3);">
+                                                            <i class="fas fa-reply me-1"></i> Action Required
+                                                        </span>
+                                                    {% elif ticket.status == 'needs_review' %}
+                                                        <span class="badge rounded-pill" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-size: 0.72rem; border: 1px solid rgba(245, 158, 11, 0.3);">
+                                                            <i class="fas fa-user-shield me-1"></i> Under Review
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge rounded-pill" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; font-size: 0.72rem; border: 1px solid rgba(99, 102, 241, 0.3);">
+                                                            <i class="fas fa-clock me-1"></i> Open
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                                <p class="ticket-text-preview mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
+                                                <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: {{ ticket.created_at }}</div>
+                                                
+                                                {% if ticket.resolution_notes %}
+                                                <div class="mt-2 p-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+                                                    <div class="small fw-bold text-success mb-1">
+                                                        <i class="fas fa-check me-1"></i> Resolution:
+                                                    </div>
+                                                    <p class="mb-1 text-secondary small">{{ ticket.resolution_notes }}</p>
+                                                    <small class="text-muted"><i class="far fa-calendar-check me-1"></i> Resolved on: {{ ticket.resolved_at.strftime('%a, %d %b %Y %H:%M') if ticket.resolved_at and ticket.resolved_at.strftime else (ticket.resolved_at or (ticket.resolution.sent_at.strftime('%a, %d %b %Y %H:%M') if ticket.resolution and ticket.resolution.sent_at and ticket.resolution.sent_at.strftime else ticket.created_at)) }}</small>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="col-lg-4 text-lg-end">
+                                                <span class="badge-category 
+                                                    {% if ticket.predicted_category == 'Technical Support' %}badge-tech
+                                                    {% elif ticket.predicted_category == 'Returns' %}badge-returns
+                                                    {% elif ticket.predicted_category == 'Billing' %}badge-billing
+                                                    {% elif ticket.predicted_category == 'General Inquiry' %}badge-inquiry
+                                                    {% else %}badge-complaint{% endif %}">
+                                                    {{ ticket.predicted_category }}
+                                                </span>
+                                                <div class="mt-2">
+                                                    <span class="badge-category {% if ticket.status == 'Resolved' %}badge-resolved{% else %}badge-open{% endif %}">
+                                                        <i class="fas {% if ticket.status == 'Resolved' %}fa-check{% else %}fa-clock{% endif %}"></i>
+                                                        {{ ticket.status|replace('_', ' ')|title }}
+                                                    </span>
+                                                </div>
+                                                <div class="mt-2" style="max-width: 160px; margin-left: auto;">
+                                                    <div class="d-flex justify-content-between small text-muted">
+                                                        <span>Confidence</span>
+                                                        <span>{{ "%.1f"|format(ticket.confidence|float) }}%</span>
+                                                    </div>
+                                                    <div class="confidence-bar">
+                                                        <div class="confidence-fill" style="width: {{ ticket.confidence }}%;"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4 text-secondary">
+                                    <i class="fas fa-ticket-alt fa-2x mb-2 text-muted"></i>
+                                    <p class="small mb-0">No tickets found yet.</p>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -434,7 +523,7 @@
 
                 <!-- 3. Ticket History Tab -->
                 <div class="tab-pane fade" id="ticket-history">
-                    <div class="glass-card p-4 mb-4">
+                    <div class="glass-card p-4 mb-4" style="overflow: visible !important; position: relative; z-index: 30;">
                         <div class="row g-3 align-items-center justify-content-between">
                             <div class="col-md-5">
                                 <div class="input-group">
@@ -445,28 +534,31 @@
                                 </div>
                             </div>
                             <div class="col-md-7 d-flex justify-content-md-end gap-2 flex-wrap">
-                                <div class="btn-group">
-                                    <button class="btn btn-secondary-dark btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                        <i class="fas fa-clock me-1"></i> Filter Status
+                                <div class="dropdown">
+                                    <button class="btn btn-secondary-dark btn-sm dropdown-toggle d-flex align-items-center gap-2" type="button" id="statusFilterBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-clock text-primary"></i> <span id="statusFilterLabel">Filter Status</span>
                                     </button>
-                                    <ul class="dropdown-menu dropdown-menu-dark">
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="all">All Statuses</a></li>
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="Open">Open</a></li>
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="Resolved">Resolved</a></li>
+                                    <ul class="dropdown-menu dropdown-menu-dark shadow-lg" aria-labelledby="statusFilterBtn" style="z-index: 1050; min-width: 170px;">
+                                        <li><a class="dropdown-item status-filter-opt active" href="#" data-status="all"><i class="fas fa-list me-2 text-muted"></i>All Statuses</a></li>
+                                        <li><a class="dropdown-item status-filter-opt" href="#" data-status="Open"><i class="fas fa-clock me-2 text-primary"></i>Open</a></li>
+                                        <li><a class="dropdown-item status-filter-opt" href="#" data-status="awaiting_customer"><i class="fas fa-reply me-2 text-info"></i>Awaiting Action</a></li>
+                                        <li><a class="dropdown-item status-filter-opt" href="#" data-status="needs_review"><i class="fas fa-user-shield me-2 text-warning"></i>Under Review</a></li>
+                                        <li><a class="dropdown-item status-filter-opt" href="#" data-status="Resolved"><i class="fas fa-check-circle me-2 text-success"></i>Resolved</a></li>
                                     </ul>
                                 </div>
 
-                                <div class="btn-group">
-                                    <button class="btn btn-secondary-dark btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                        <i class="fas fa-tags me-1"></i> Filter Category
+                                <div class="dropdown">
+                                    <button class="btn btn-secondary-dark btn-sm dropdown-toggle d-flex align-items-center gap-2" type="button" id="categoryFilterBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-tags text-primary"></i> <span id="categoryFilterLabel">Filter Category</span>
                                     </button>
-                                    <ul class="dropdown-menu dropdown-menu-dark">
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="all">All Categories</a></li>
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="Technical Support">Technical Support</a></li>
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="Returns">Returns</a></li>
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="Billing">Billing</a></li>
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="General Inquiry">General Inquiry</a></li>
-                                        <li><a class="dropdown-item filter-option" href="#" data-filter="Complaint">Complaint</a></li>
+                                    <ul class="dropdown-menu dropdown-menu-dark shadow-lg" aria-labelledby="categoryFilterBtn" style="z-index: 1050; min-width: 190px;">
+                                        <li><a class="dropdown-item category-filter-opt active" href="#" data-category="all"><i class="fas fa-layer-group me-2 text-muted"></i>All Categories</a></li>
+                                        <li><a class="dropdown-item category-filter-opt" href="#" data-category="Technical Support"><i class="fas fa-code-branch me-2 text-info"></i>Technical Support</a></li>
+                                        <li><a class="dropdown-item category-filter-opt" href="#" data-category="Returns"><i class="fas fa-undo-alt me-2 text-warning"></i>Returns</a></li>
+                                        <li><a class="dropdown-item category-filter-opt" href="#" data-category="Billing"><i class="fas fa-receipt me-2 text-success"></i>Billing</a></li>
+                                        <li><a class="dropdown-item category-filter-opt" href="#" data-category="General Inquiry"><i class="fas fa-info-circle me-2 text-primary"></i>General Inquiry</a></li>
+                                        <li><a class="dropdown-item category-filter-opt" href="#" data-category="Complaint"><i class="fas fa-exclamation-triangle me-2 text-danger"></i>Complaint</a></li>
+                                        <li><a class="dropdown-item category-filter-opt" href="#" data-category="Out of Scope"><i class="fas fa-ban me-2 text-secondary"></i>Out of Scope</a></li>
                                     </ul>
                                 </div>
                             </div>
@@ -482,14 +574,28 @@
                                     {% elif ticket.predicted_category == 'Returns' %}ticket-returns
                                     {% elif ticket.predicted_category == 'Billing' %}ticket-billing
                                     {% elif ticket.predicted_category == 'General Inquiry' %}ticket-inquiry
-                                    {% else %}ticket-complaint{% endif %}">
+                                    {% else %}ticket-complaint{% endif %}"
+                                    data-ticket-category="{{ ticket.predicted_category }}"
+                                    data-ticket-status="{{ ticket.status }}">
                                     <div class="row align-items-start g-3">
                                         <div class="col-lg-8">
                                             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                                                 <span class="fw-bold ticket-title">Ticket #{{ ticket.id }}</span>
-                                                {% if ticket.resolution_notes %}
+                                                {% if ticket.status == 'Resolved' %}
                                                     <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem; border: 1px solid rgba(16, 185, 129, 0.3);">
                                                         <i class="fas fa-check-circle me-1"></i> Resolved
+                                                    </span>
+                                                {% elif ticket.status == 'awaiting_customer' %}
+                                                    <span class="badge rounded-pill" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 0.72rem; border: 1px solid rgba(56, 189, 248, 0.3);">
+                                                        <i class="fas fa-reply me-1"></i> Action Required
+                                                    </span>
+                                                {% elif ticket.status == 'needs_review' %}
+                                                    <span class="badge rounded-pill" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; font-size: 0.72rem; border: 1px solid rgba(245, 158, 11, 0.3);">
+                                                        <i class="fas fa-user-shield me-1"></i> Under Review
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge rounded-pill" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; font-size: 0.72rem; border: 1px solid rgba(99, 102, 241, 0.3);">
+                                                        <i class="fas fa-clock me-1"></i> Open
                                                     </span>
                                                 {% endif %}
                                             </div>
@@ -561,7 +667,18 @@
                                                     <i class="fas fa-check me-1"></i> Admin Resolution:
                                                 </div>
                                                 <p class="mb-1 text-secondary small">{{ ticket.resolution_notes }}</p>
-                                                <div class="text-muted" style="font-size: 0.72rem;">Resolved on: {{ ticket.resolved_at }}</div>
+                                                <div class="text-muted small">
+                                                    <i class="far fa-calendar-check me-1"></i> Resolved on: 
+                                                    {% if ticket.resolved_at %}
+                                                        {{ ticket.resolved_at.strftime('%a, %d %b %Y %H:%M') if ticket.resolved_at.strftime else ticket.resolved_at }}
+                                                    {% elif ticket.resolution and ticket.resolution.sent_at %}
+                                                        {{ ticket.resolution.sent_at.strftime('%a, %d %b %Y %H:%M') if ticket.resolution.sent_at.strftime else ticket.resolution.sent_at }}
+                                                    {% elif ticket.resolution and ticket.resolution.created_at %}
+                                                        {{ ticket.resolution.created_at.strftime('%a, %d %b %Y %H:%M') if ticket.resolution.created_at.strftime else ticket.resolution.created_at }}
+                                                    {% else %}
+                                                        {{ ticket.created_at.strftime('%a, %d %b %Y %H:%M') if ticket.created_at.strftime else ticket.created_at }}
+                                                    {% endif %}
+                                                </div>
                                             </div>
                                             {% endif %}
                                         </div>
@@ -579,7 +696,7 @@
                                             <div class="mt-2">
                                                 <span class="badge-category {% if ticket.status == 'Resolved' %}badge-resolved{% else %}badge-open{% endif %}">
                                                     <i class="fas {% if ticket.status == 'Resolved' %}fa-check{% else %}fa-clock{% endif %}"></i>
-                                                    {{ ticket.status }}
+                                                    {{ ticket.status|replace('_', ' ')|title }}
                                                 </span>
                                             </div>
 
@@ -594,7 +711,7 @@
                                             <div class="mt-2" style="max-width: 160px; margin-left: auto;">
                                                 <div class="d-flex justify-content-between small text-muted">
                                                     <span>Confidence</span>
-                                                    <span>{{ "%.1f"|format(ticket.confidence) }}%</span>
+                                                    <span>{{ "%.1f"|format(ticket.confidence|float) }}%</span>
                                                 </div>
                                                 <div class="confidence-bar">
                                                     <div class="confidence-fill" style="width: {{ ticket.confidence }}%;"></div>
@@ -721,10 +838,10 @@
                         }
                         
                         document.getElementById('result-description').textContent = data.description || '';
-                        document.getElementById('result-confidence').textContent = data.confidence;
+                        document.getElementById('result-confidence').textContent = Number(data.confidence || 0).toFixed(1);
                         
                         const fillBar = document.getElementById('confidence-bar-fill');
-                        fillBar.style.width = Math.min(data.confidence, 100) + '%';
+                        fillBar.style.width = Math.min(Number(data.confidence || 0), 100) + '%';
                         
                         const statusBadgeEl = document.getElementById('result-status-badge');
                         const confContainer = document.getElementById('result-confidence-container');
@@ -807,21 +924,90 @@
                         document.getElementById('ticket-form').reset();
                         
                         // Update local tickets data array and re-render stats & recent tickets
-                        const ticketsDataElement = document.getElementById('tickets-data');
-                        const currentTickets = ticketsDataElement ? JSON.parse(ticketsDataElement.textContent || '[]') : [];
-                        currentTickets.unshift({
-                            id: data.ticket_id,
-                            ticket_text: ticketText,
-                            predicted_category: data.category,
-                            confidence: data.confidence,
-                            status: 'Open',
-                            created_at: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                            resolution_notes: null
-                        });
-                        if (ticketsDataElement) {
-                            ticketsDataElement.textContent = JSON.stringify(currentTickets);
+                        try {
+                            const ticketsDataElement = document.getElementById('tickets-data');
+                            const currentTickets = ticketsDataElement ? JSON.parse(ticketsDataElement.textContent || '[]') : [];
+                            currentTickets.unshift({
+                                id: data.ticket_id,
+                                ticket_text: ticketText,
+                                predicted_category: data.category,
+                                confidence: Number(data.confidence || 0),
+                                status: 'Open',
+                                created_at: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                                resolution_notes: null
+                            });
+                            if (ticketsDataElement) {
+                                ticketsDataElement.textContent = JSON.stringify(currentTickets);
+                            }
+                            updateDashboardStats();
+                        } catch (statsErr) {
+                            console.warn('Dashboard stats refresh warning:', statsErr);
                         }
-                        updateDashboardStats();
+
+                        // Instantly prepend new ticket to the main tickets list
+                        const mainTicketsList = document.getElementById('tickets-list');
+                        if (mainTicketsList) {
+                            const emptyState = document.getElementById('no-tickets');
+                            if (emptyState) emptyState.remove();
+
+                            const catClass = data.category === 'Technical Support' ? 'ticket-tech' :
+                                              data.category === 'Returns' ? 'ticket-returns' :
+                                              data.category === 'Billing' ? 'ticket-billing' :
+                                              data.category === 'General Inquiry' ? 'ticket-inquiry' : 'ticket-complaint';
+                            const badgeClass = data.category === 'Technical Support' ? 'badge-tech' :
+                                               data.category === 'Returns' ? 'badge-returns' :
+                                               data.category === 'Billing' ? 'badge-billing' :
+                                               data.category === 'General Inquiry' ? 'badge-inquiry' : 'badge-complaint';
+
+                            const card = document.createElement('div');
+                            card.className = `ticket-card mb-3 ${catClass}`;
+                            card.id = `ticket-card-${data.ticket_id}`;
+                            card.setAttribute('data-ticket-category', data.category);
+                            card.setAttribute('data-ticket-status', data.status || 'Open');
+                            card.style.animation = 'fadeIn 0.35s ease';
+
+                            let aiBlock = '';
+                            if (data.resolution && data.resolution.proposed_solution) {
+                                aiBlock = `
+                                    <div class="mt-3 p-3 rounded" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2);">
+                                        <div class="d-flex align-items-center justify-content-between mb-1">
+                                            <span class="small fw-bold gradient-text"><i class="fas fa-sparkles me-1"></i> AI Proposed Solution:</span>
+                                            <span class="badge bg-dark border text-muted" style="font-size: 0.7rem;">Grounding: ${data.resolution.grounding_status || 'ungrounded'}</span>
+                                        </div>
+                                        <p class="small text-secondary mb-2" style="white-space: pre-wrap;">${data.resolution.proposed_solution}</p>
+                                    </div>
+                                `;
+                            }
+
+                            card.innerHTML = `
+                                <div class="row align-items-start g-3">
+                                    <div class="col-lg-8">
+                                        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                            <span class="fw-bold ticket-title">Ticket #${data.ticket_id}</span>
+                                        </div>
+                                        <p class="ticket-text-preview mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${ticketText}</p>
+                                        <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: Just now</div>
+                                        ${aiBlock}
+                                    </div>
+                                    <div class="col-lg-4 text-lg-end">
+                                        <span class="badge-category ${badgeClass}">${data.category}</span>
+                                        <div class="mt-2">
+                                            <span class="badge-category badge-open"><i class="fas fa-clock"></i> Open</span>
+                                        </div>
+                                        <div class="mt-2" style="max-width: 160px; margin-left: auto;">
+                                            <div class="d-flex justify-content-between small text-muted">
+                                                <span>Confidence</span>
+                                                <span>${Number(data.confidence || 0).toFixed(1)}%</span>
+                                            </div>
+                                            <div class="confidence-bar">
+                                                <div class="confidence-fill" style="width: ${Math.min(Number(data.confidence || 0), 100)}%;"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            mainTicketsList.insertBefore(card, mainTicketsList.firstChild);
+                        }
                     } else {
                         alert('Error: ' + data.error);
                     }
@@ -844,146 +1030,222 @@
             
             // Update dashboard stats
             function updateDashboardStats() {
-                const ticketsDataElement = document.getElementById('tickets-data');
-                const tickets = ticketsDataElement ? JSON.parse(ticketsDataElement.textContent || '[]') : [];
-                
-                if (tickets && tickets.length > 0) {
-                    document.getElementById('total-tickets').textContent = tickets.length;
+                try {
+                    const ticketsDataElement = document.getElementById('tickets-data');
+                    const tickets = ticketsDataElement ? JSON.parse(ticketsDataElement.textContent || '[]') : [];
                     
-                    const openTickets = tickets.filter(ticket => ticket.status === 'Open').length;
-                    document.getElementById('open-tickets').textContent = openTickets;
-                    
-                    const resolvedTickets = tickets.filter(ticket => ticket.status === 'Resolved').length;
-                    document.getElementById('resolved-tickets').textContent = resolvedTickets;
-                    
-                    const avgConfidence = tickets.reduce((sum, ticket) => sum + ticket.confidence, 0) / tickets.length;
-                    document.getElementById('avg-confidence').textContent = avgConfidence.toFixed(1) + '%';
-                    
-                    // Update recent tickets list
-                    const recentTicketsList = document.getElementById('recent-tickets-list');
-                    recentTicketsList.innerHTML = '';
-                    
-                    const recentTickets = tickets.slice(0, 5);
-                    
-                    if (recentTickets.length > 0) {
-                        recentTickets.forEach(ticket => {
-                            const ticketElement = document.createElement('div');
-                            const catClass = ticket.predicted_category === 'Technical Support' ? 'ticket-tech' :
-                                              ticket.predicted_category === 'Returns' ? 'ticket-returns' :
-                                              ticket.predicted_category === 'Billing' ? 'ticket-billing' :
-                                              ticket.predicted_category === 'General Inquiry' ? 'ticket-inquiry' : 'ticket-complaint';
+                    if (tickets && tickets.length > 0) {
+                        const totalEl = document.getElementById('total-tickets');
+                        if (totalEl) totalEl.textContent = tickets.length;
+                        
+                        const openTickets = tickets.filter(ticket => ticket.status !== 'Resolved').length;
+                        const openEl = document.getElementById('open-tickets');
+                        if (openEl) openEl.textContent = openTickets;
+                        
+                        const resolvedTickets = tickets.filter(ticket => ticket.status === 'Resolved').length;
+                        const resolvedEl = document.getElementById('resolved-tickets');
+                        if (resolvedEl) resolvedEl.textContent = resolvedTickets;
+                        
+                        const sumConf = tickets.reduce((sum, ticket) => sum + Number(ticket.confidence || 0), 0);
+                        const avgConfidence = sumConf / (tickets.length || 1);
+                        const avgEl = document.getElementById('avg-confidence');
+                        if (avgEl) avgEl.textContent = avgConfidence.toFixed(1) + '%';
+                        
+                        // Update recent tickets list
+                        const recentTicketsList = document.getElementById('recent-tickets-list');
+                        if (recentTicketsList) {
+                            recentTicketsList.innerHTML = '';
                             
-                            const badgeClass = ticket.predicted_category === 'Technical Support' ? 'badge-tech' :
-                                               ticket.predicted_category === 'Returns' ? 'badge-returns' :
-                                               ticket.predicted_category === 'Billing' ? 'badge-billing' :
-                                               ticket.predicted_category === 'General Inquiry' ? 'badge-inquiry' : 'badge-complaint';
+                            const recentTickets = tickets.slice(0, 5);
+                            
+                            if (recentTickets.length > 0) {
+                                recentTickets.forEach(ticket => {
+                                    const ticketElement = document.createElement('div');
+                                    const catClass = ticket.predicted_category === 'Technical Support' ? 'ticket-tech' :
+                                                      ticket.predicted_category === 'Returns' ? 'ticket-returns' :
+                                                      ticket.predicted_category === 'Billing' ? 'ticket-billing' :
+                                                      ticket.predicted_category === 'General Inquiry' ? 'ticket-inquiry' : 'ticket-complaint';
+                                    
+                                    const badgeClass = ticket.predicted_category === 'Technical Support' ? 'badge-tech' :
+                                                       ticket.predicted_category === 'Returns' ? 'badge-returns' :
+                                                       ticket.predicted_category === 'Billing' ? 'badge-billing' :
+                                                       ticket.predicted_category === 'General Inquiry' ? 'badge-inquiry' : 'badge-complaint';
 
-                            ticketElement.className = `ticket-card mb-3 ${catClass}`;
-                            
-                            let resolutionHtml = '';
-                            if (ticket.resolution_notes) {
-                                resolutionHtml = `
-                                    <div class="mt-2 p-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
-                                        <div class="small fw-bold text-success mb-1">
-                                            <i class="fas fa-check me-1"></i> Resolution:
+                                    ticketElement.className = `ticket-card mb-3 ${catClass}`;
+                                    
+                                    let resolutionHtml = '';
+                                    if (ticket.resolution_notes) {
+                                        const resTime = ticket.resolved_at || (ticket.resolution && ticket.resolution.sent_at) || ticket.created_at || 'Recently';
+                                        resolutionHtml = `
+                                            <div class="mt-2 p-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+                                                <div class="small fw-bold text-success mb-1">
+                                                    <i class="fas fa-check me-1"></i> Resolution:
+                                                </div>
+                                                <p class="mb-1 text-secondary small">${ticket.resolution_notes}</p>
+                                                <small class="text-muted"><i class="far fa-calendar-check me-1"></i> Resolved on: ${resTime}</small>
+                                            </div>
+                                        `;
+                                    }
+                                    
+                                    const numConf = Number(ticket.confidence || 0);
+                                    ticketElement.innerHTML = `
+                                        <div class="row align-items-start g-3">
+                                            <div class="col-lg-8">
+                                                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                                    <span class="fw-bold ticket-title">Ticket #${ticket.id}</span>
+                                                    ${ticket.resolution_notes ? '<span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem;"><i class="fas fa-check-circle me-1"></i> Resolved</span>' : ''}
+                                                </div>
+                                                <p class="ticket-text-preview mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${ticket.ticket_text}</p>
+                                                <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: ${ticket.created_at}</div>
+                                                ${resolutionHtml}
+                                            </div>
+                                            <div class="col-lg-4 text-lg-end">
+                                                <span class="badge-category ${badgeClass}">
+                                                    ${ticket.predicted_category}
+                                                </span>
+                                                <div class="mt-2">
+                                                    <span class="badge-category ${ticket.status === 'Resolved' ? 'badge-resolved' : 'badge-open'}">
+                                                        <i class="fas ${ticket.status === 'Resolved' ? 'fa-check' : 'fa-clock'}"></i>
+                                                        ${ticket.status}
+                                                    </span>
+                                                </div>
+                                                <div class="mt-2" style="max-width: 160px; margin-left: auto;">
+                                                    <div class="d-flex justify-content-between small text-muted">
+                                                        <span>Confidence</span>
+                                                        <span>${numConf.toFixed(1)}%</span>
+                                                    </div>
+                                                    <div class="confidence-bar">
+                                                        <div class="confidence-fill" style="width: ${Math.min(numConf, 100)}%;"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <p class="mb-1 text-secondary small">${ticket.resolution_notes}</p>
-                                        <small class="text-muted">Resolved on: ${ticket.resolved_at || 'N/A'}</small>
+                                    `;
+                                    recentTicketsList.appendChild(ticketElement);
+                                });
+                            } else {
+                                recentTicketsList.innerHTML = `
+                                    <div class="text-center py-4 text-secondary">
+                                        <i class="fas fa-ticket-alt fa-2x mb-2 text-muted"></i>
+                                        <p class="small mb-0">No tickets found yet.</p>
                                     </div>
                                 `;
                             }
-                            
-                            ticketElement.innerHTML = `
-                                <div class="row align-items-start g-3">
-                                    <div class="col-lg-8">
-                                        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                                            <span class="fw-bold ticket-title">Ticket #${ticket.id}</span>
-                                            ${ticket.resolution_notes ? '<span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem;"><i class="fas fa-check-circle me-1"></i> Resolved</span>' : ''}
-                                        </div>
-                                        <p class="ticket-text-preview mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">${ticket.ticket_text}</p>
-                                        <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: ${ticket.created_at}</div>
-                                        ${resolutionHtml}
-                                    </div>
-                                    <div class="col-lg-4 text-lg-end">
-                                        <span class="badge-category ${badgeClass}">
-                                            ${ticket.predicted_category}
-                                        </span>
-                                        <div class="mt-2">
-                                            <span class="badge-category ${ticket.status === 'Resolved' ? 'badge-resolved' : 'badge-open'}">
-                                                <i class="fas ${ticket.status === 'Resolved' ? 'fa-check' : 'fa-clock'}"></i>
-                                                ${ticket.status}
-                                            </span>
-                                        </div>
-                                        <div class="mt-2" style="max-width: 160px; margin-left: auto;">
-                                            <div class="d-flex justify-content-between small text-muted">
-                                                <span>Confidence</span>
-                                                <span>${ticket.confidence.toFixed(1)}%</span>
-                                            </div>
-                                            <div class="confidence-bar">
-                                                <div class="confidence-fill" style="width: ${ticket.confidence}%;"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                            recentTicketsList.appendChild(ticketElement);
-                        });
-                    } else {
-                        recentTicketsList.innerHTML = `
-                            <div class="text-center py-4 text-secondary">
-                                <i class="fas fa-ticket-alt fa-2x mb-2 text-muted"></i>
-                                <p class="small mb-0">No tickets found yet.</p>
-                            </div>
-                        `;
+                        }
                     }
+                } catch (e) {
+                    console.warn('Error in updateDashboardStats:', e);
                 }
             }
             
             // Initialize dashboard stats
             updateDashboardStats();
             
-            // Search functionality
-            document.getElementById('search-button').addEventListener('click', function() {
-                filterTickets();
-            });
-            
-            document.getElementById('search-tickets').addEventListener('keyup', function(e) {
-                if (e.key === 'Enter') {
-                    filterTickets();
-                }
-            });
-            
-            // Filter functionality
-            document.querySelectorAll('.filter-option').forEach(option => {
-                option.addEventListener('click', function(e) {
+            // Filter state variables
+            let activeStatusFilter = 'all';
+            let activeCategoryFilter = 'all';
+
+            // Status filter selection
+            document.querySelectorAll('.status-filter-opt').forEach(opt => {
+                opt.addEventListener('click', function(e) {
                     e.preventDefault();
-                    const filter = this.getAttribute('data-filter');
-                    filterTickets(filter);
+                    activeStatusFilter = this.getAttribute('data-status');
+                    document.querySelectorAll('.status-filter-opt').forEach(o => o.classList.remove('active'));
+                    this.classList.add('active');
+                    const label = activeStatusFilter === 'all' ? 'Filter Status' : this.textContent.trim();
+                    const statusTextEl = document.getElementById('statusFilterLabel');
+                    if (statusTextEl) statusTextEl.textContent = label;
+                    applyTicketFilters();
                 });
             });
-            
-            function filterTickets(statusFilter = 'all', categoryFilter = 'all') {
-                const searchTerm = document.getElementById('search-tickets').value.toLowerCase();
+
+            // Category filter selection
+            document.querySelectorAll('.category-filter-opt').forEach(opt => {
+                opt.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    activeCategoryFilter = this.getAttribute('data-category');
+                    document.querySelectorAll('.category-filter-opt').forEach(o => o.classList.remove('active'));
+                    this.classList.add('active');
+                    const label = activeCategoryFilter === 'all' ? 'Filter Category' : this.textContent.trim();
+                    const catTextEl = document.getElementById('categoryFilterLabel');
+                    if (catTextEl) catTextEl.textContent = label;
+                    applyTicketFilters();
+                });
+            });
+
+            // Instant Search
+            const searchInput = document.getElementById('search-tickets');
+            if (searchInput) {
+                searchInput.addEventListener('input', applyTicketFilters);
+            }
+            const searchBtn = document.getElementById('search-button');
+            if (searchBtn) {
+                searchBtn.addEventListener('click', applyTicketFilters);
+            }
+
+            function applyTicketFilters() {
+                const searchEl = document.getElementById('search-tickets');
+                const searchTerm = searchEl ? searchEl.value.toLowerCase().trim() : '';
                 const ticketCards = document.querySelectorAll('#tickets-list .ticket-card');
-                
+
                 ticketCards.forEach(card => {
-                    const ticketText = card.querySelector('.ticket-text-preview').textContent.toLowerCase();
-                    const ticketCategory = card.querySelector('.badge-category').textContent.trim();
+                    const textEl = card.querySelector('.ticket-text-preview');
+                    const ticketText = textEl ? textEl.textContent.toLowerCase() : '';
+                    
+                    const cardCat = (card.getAttribute('data-ticket-category') || card.querySelector('.badge-category')?.textContent || '').trim();
+                    const cardStatus = (card.getAttribute('data-ticket-status') || '').trim();
                     const statusBadge = card.querySelector('.badge-open, .badge-resolved');
-                    const ticketStatus = statusBadge ? statusBadge.textContent.trim() : '';
-                    
-                    const matchesSearch = ticketText.includes(searchTerm);
-                    const matchesStatus = statusFilter === 'all' || ticketStatus.includes(statusFilter);
-                    const matchesCategory = categoryFilter === 'all' || ticketCategory.includes(categoryFilter);
-                    
-                    if (matchesSearch && matchesStatus && matchesCategory) {
-                        card.style.display = 'block';
-                    } else {
-                        card.style.display = 'none';
+                    const rawStatus = (cardStatus || statusBadge?.textContent || '').trim().toLowerCase();
+                    const isResolved = rawStatus.includes('resolved');
+
+                    // Search match
+                    const matchesSearch = !searchTerm || ticketText.includes(searchTerm);
+
+                    // Status match
+                    let matchesStatus = true;
+                    if (activeStatusFilter === 'Resolved') {
+                        matchesStatus = isResolved;
+                    } else if (activeStatusFilter === 'Open') {
+                        matchesStatus = !isResolved;
+                    } else if (activeStatusFilter === 'awaiting_customer') {
+                        matchesStatus = rawStatus.includes('awaiting') || rawStatus.includes('action');
+                    } else if (activeStatusFilter === 'needs_review') {
+                        matchesStatus = rawStatus.includes('review') || rawStatus.includes('specialist');
+                    } else if (activeStatusFilter !== 'all') {
+                        matchesStatus = rawStatus.includes(activeStatusFilter.toLowerCase());
                     }
+
+                    // Category match
+                    let matchesCategory = true;
+                    if (activeCategoryFilter !== 'all') {
+                        matchesCategory = cardCat.toLowerCase() === activeCategoryFilter.toLowerCase();
+                    }
+
+                    card.style.display = (matchesSearch && matchesStatus && matchesCategory) ? 'block' : 'none';
                 });
             }
         });
+
+        function showToast(message, type = 'success') {
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.style.cssText = 'position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; max-width: 380px;';
+                document.body.appendChild(container);
+            }
+            const toast = document.createElement('div');
+            const bg = type === 'success' ? 'rgba(16, 185, 129, 0.95)' : type === 'warning' ? 'rgba(245, 158, 11, 0.95)' : 'rgba(239, 68, 68, 0.95)';
+            const icon = type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle';
+            toast.style.cssText = `background: ${bg}; color: #fff; padding: 12px 18px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 10px; font-size: 0.9rem; font-weight: 500; backdrop-filter: blur(8px);`;
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.4s ease';
+                setTimeout(() => toast.remove(), 400);
+            }, 3500);
+        }
 
         function sendCustomerFeedback(ticketId) {
             const resolvedSel = document.getElementById('fb-resolved-' + ticketId);
@@ -1006,15 +1268,25 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
-                    location.reload();
+                    showToast(data.message, 'success');
+                    const formContainer = document.getElementById('feedback-form-' + ticketId);
+                    if (formContainer) {
+                        formContainer.innerHTML = `
+                            <div class="p-3 rounded mt-2" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+                                <div class="fw-bold text-success small mb-1"><i class="fas fa-check-circle me-1"></i> Feedback Recorded: Rating ${rating}/5 (${wasResolved ? 'Resolved' : 'Needs Follow-up'})</div>
+                                <div class="small text-secondary">${comment || 'Thank you for your feedback!'}</div>
+                            </div>
+                        `;
+                    }
+                    const reopenBtn = document.getElementById('reopen-btn-' + ticketId);
+                    if (reopenBtn) reopenBtn.classList.remove('d-none');
                 } else {
-                    alert('Error: ' + data.error);
+                    showToast('Error: ' + data.error, 'danger');
                 }
             })
             .catch(err => {
                 console.error(err);
-                alert('Could not record feedback');
+                showToast('Could not record feedback', 'danger');
             });
         }
 
@@ -1029,13 +1301,14 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
-                    location.reload();
+                    showToast(data.message, 'warning');
+                    const reopenBtn = document.getElementById('reopen-btn-' + ticketId);
+                    if (reopenBtn) reopenBtn.classList.add('d-none');
                 } else {
-                    alert('Error: ' + data.error);
+                    showToast('Error: ' + data.error, 'danger');
                 }
             })
-            .catch(err => alert('Error: ' + err.message));
+            .catch(err => showToast('Error: ' + err.message, 'danger'));
         }
     </script>
 </body>

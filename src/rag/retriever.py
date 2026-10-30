@@ -19,7 +19,7 @@ class Retriever:
         self,
         embedding_service: Optional[EmbeddingService] = None,
         vector_store: Optional[VectorStore] = None,
-        default_top_k: int = 5,
+        default_top_k: int = 3,
         default_relevance_threshold: Optional[float] = None
     ):
         self.embedding_service = embedding_service or EmbeddingService()

@@ -995,6 +995,27 @@
         let currentActiveTicketId = null;
         const cachedTickets = {};
 
+        function showToast(message, type = 'success') {
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.style.cssText = 'position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; max-width: 380px;';
+                document.body.appendChild(container);
+            }
+            const toast = document.createElement('div');
+            const bg = type === 'success' ? 'rgba(16, 185, 129, 0.95)' : type === 'warning' ? 'rgba(245, 158, 11, 0.95)' : 'rgba(239, 68, 68, 0.95)';
+            const icon = type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle';
+            toast.style.cssText = `background: ${bg}; color: #fff; padding: 12px 18px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 10px; font-size: 0.9rem; font-weight: 500; backdrop-filter: blur(8px);`;
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.4s ease';
+                setTimeout(() => toast.remove(), 400);
+            }, 3500);
+        }
+
         // Parse tickets from DOM data attributes into client lookup safely without inline Jinja
         function initTicketCache() {
             document.querySelectorAll('.ticket-item-card[data-ticket-id]').forEach(function(card) {
@@ -1093,7 +1114,10 @@
                     }
                     document.getElementById('aiSourcesContainer').innerHTML = sourcesHtml;
                 } else {
-                    document.getElementById('aiEditableSolution').value = 'AI resolution could not be generated: ' + (data.error || 'Check API key or server log.');
+                    document.getElementById('aiProblemSummary').value = data.problem_summary || '';
+                    document.getElementById('aiIdentifiedIssue').value = data.identified_issue || '';
+                    document.getElementById('aiEditableSolution').value = data.proposed_solution || ('AI resolution note: ' + (data.error || 'Please enter resolution notes manually.'));
+                    document.getElementById('aiGroundingBadge').textContent = 'Grounding: unverified';
                 }
             })
             .catch(err => {
@@ -1160,16 +1184,35 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
-                    location.reload();
+                    showToast(data.message, 'success');
+                    const modalEl = document.getElementById('aiResolutionModal');
+                    const modalInst = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInst) modalInst.hide();
+
+                    // Instantly update ticket card in DOM without reloading the page
+                    const card = document.querySelector('.ticket-item-card[data-ticket-id="' + currentActiveTicketId + '"]');
+                    if (card) {
+                        card.setAttribute('data-ticket-status', 'awaiting_customer');
+                        const badges = card.querySelectorAll('.badge');
+                        badges.forEach(b => {
+                            if (b.textContent.includes('Open') || b.textContent.includes('Review') || b.textContent.includes('Escalated') || b.textContent.includes('Needs')) {
+                                b.className = 'badge bg-info text-dark small';
+                                b.innerHTML = '<i class="fas fa-user-clock me-1"></i>Awaiting Customer';
+                            }
+                            if (b.textContent.includes('Pending Action')) {
+                                b.className = 'badge badge-method-ai rounded-pill small';
+                                b.innerHTML = '<i class="fas fa-robot me-1"></i>AI-Assisted';
+                            }
+                        });
+                    }
                 } else {
-                    alert('Error: ' + data.error);
+                    showToast('Error: ' + data.error, 'danger');
                     sendBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Approve & Send to Customer';
                     sendBtn.disabled = false;
                 }
             })
             .catch(err => {
-                alert('Error: ' + err.message);
+                showToast('Error: ' + err.message, 'danger');
                 sendBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Approve & Send to Customer';
                 sendBtn.disabled = false;
             });
@@ -1225,13 +1268,32 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
-                    location.reload();
+                    showToast(data.message, 'success');
+                    const modalEl = document.getElementById('manualResolutionModal');
+                    const modalInst = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInst) modalInst.hide();
+
+                    // Instantly update ticket card in DOM without reloading the page
+                    const card = document.querySelector('.ticket-item-card[data-ticket-id="' + ticketId + '"]');
+                    if (card) {
+                        card.setAttribute('data-ticket-status', 'awaiting_customer');
+                        const badges = card.querySelectorAll('.badge');
+                        badges.forEach(b => {
+                            if (b.textContent.includes('Open') || b.textContent.includes('Review') || b.textContent.includes('Escalated') || b.textContent.includes('Needs')) {
+                                b.className = 'badge bg-info text-dark small';
+                                b.innerHTML = '<i class="fas fa-user-clock me-1"></i>Awaiting Customer';
+                            }
+                            if (b.textContent.includes('Pending Action') || b.textContent.includes('AI-Assisted')) {
+                                b.className = 'badge badge-method-manual rounded-pill small';
+                                b.innerHTML = '<i class="fas fa-user-edit me-1"></i>Manual';
+                            }
+                        });
+                    }
                 } else {
-                    alert('Error: ' + data.error);
+                    showToast('Error: ' + data.error, 'danger');
                 }
             })
-            .catch(err => alert('Error: ' + err.message));
+            .catch(err => showToast('Error: ' + err.message, 'danger'));
         }
 
         // -------------------------------------------------------------
@@ -1344,9 +1406,24 @@
             })
             .then(r => r.json())
             .then(data => {
-                if (data.success) { alert(data.message); location.reload(); }
-                else { alert('Error: ' + data.error); }
-            });
+                if (data.success) {
+                    showToast(data.message, 'warning');
+                    const card = document.querySelector('.ticket-item-card[data-ticket-id="' + ticketId + '"]');
+                    if (card) {
+                        card.setAttribute('data-ticket-status', 'needs_review');
+                        const badges = card.querySelectorAll('.badge');
+                        badges.forEach(b => {
+                            if (b.textContent.includes('Open') || b.textContent.includes('Customer')) {
+                                b.className = 'badge bg-warning text-dark small';
+                                b.innerHTML = '<i class="fas fa-user-shield me-1"></i>Specialist Review Needed';
+                            }
+                        });
+                    }
+                } else {
+                    showToast('Error: ' + data.error, 'danger');
+                }
+            })
+            .catch(err => showToast('Error: ' + err.message, 'danger'));
         }
 
         // -------------------------------------------------------------
@@ -1391,10 +1468,10 @@
         function handleToggleKBDoc(btn) {
             const docId = btn.getAttribute('data-doc-id');
             const nextActive = btn.getAttribute('data-next-state') === 'true';
-            toggleKBDoc(docId, nextActive);
+            toggleKBDoc(docId, nextActive, btn);
         }
 
-        function toggleKBDoc(docId, newActive) {
+        function toggleKBDoc(docId, newActive, btn = null) {
             fetch('/admin/kb/toggle/' + docId, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1402,9 +1479,28 @@
             })
             .then(r => r.json())
             .then(data => {
-                if (data.success) location.reload();
-                else alert('Error: ' + data.error);
-            });
+                if (data.success) {
+                    showToast('Document status updated!', 'success');
+                    if (btn) {
+                        btn.setAttribute('data-next-state', newActive ? 'false' : 'true');
+                        const icon = btn.querySelector('i');
+                        if (icon) {
+                            icon.className = newActive ? 'fas fa-toggle-on text-success' : 'fas fa-toggle-off text-muted';
+                        }
+                        const row = btn.closest('tr');
+                        if (row && row.cells && row.cells.length > 5) {
+                            row.cells[5].innerHTML = newActive
+                                ? '<span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 px-2 py-1">Active</span>'
+                                : '<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 px-2 py-1">Inactive</span>';
+                        }
+                    } else {
+                        location.reload();
+                    }
+                } else {
+                    showToast('Error: ' + data.error, 'danger');
+                }
+            })
+            .catch(err => showToast('Error: ' + err.message, 'danger'));
         }
 
         function reindexKBDoc(docId) {
