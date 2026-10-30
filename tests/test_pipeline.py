@@ -181,22 +181,45 @@ class TestTicketClassificationPipeline(unittest.TestCase):
     def test_flask_classify_endpoint(self):
         """Verify the Flask /classify HTTP route with an authenticated session."""
         from app import app
-        with app.test_client() as client:
-            with client.session_transaction() as sess:
-                sess['user_id'] = 1
-                sess['username'] = 'test_user'
-                sess['is_admin'] = False
+        from unittest.mock import patch, MagicMock
 
-            resp = client.post('/classify', json={
-                'ticket_text': 'I need a refund for damaged item'
-            })
-            self.assertEqual(resp.status_code, 200)
-            data = resp.get_json()
-            self.assertTrue(data['success'])
-            self.assertIn('category', data)
-            self.assertIn('is_out_of_scope', data)
-            self.assertIn('needs_human_review', data)
-            self.assertIn('top_categories', data)
+        mock_payload = {
+            'ticket_id': 105,
+            'category': 'Returns',
+            'raw_category': 'Returns',
+            'confidence': 98.5,
+            'confidence_level': 'High',
+            'status': 'awaiting_customer',
+            'needs_human_review': False,
+            'is_out_of_scope': False,
+            'review_reason': '',
+            'top_predictions': [{'category': 'Returns', 'confidence': 98.5}],
+            'resolution': {
+                'problem_summary': 'Damaged item return',
+                'proposed_solution': ['Check return label.'],
+                'grounding_status': 'grounded'
+            },
+            'sources': [],
+            'success': True
+        }
+
+        with patch("src.services.ticket_orchestrator.TicketOrchestrator.process_ticket_submission", return_value=mock_payload):
+            with app.test_client() as client:
+                with client.session_transaction() as sess:
+                    sess['user_id'] = 1
+                    sess['username'] = 'test_user'
+                    sess['is_admin'] = False
+
+                resp = client.post('/classify', json={
+                    'ticket_text': 'I need a refund for damaged item'
+                })
+                self.assertEqual(resp.status_code, 200)
+                data = resp.get_json()
+                self.assertTrue(data['success'])
+                self.assertIn('category', data)
+                self.assertIn('is_out_of_scope', data)
+                self.assertIn('needs_human_review', data)
+                self.assertIn('top_categories', data)
 
     def test_flask_batch_classify_endpoint(self):
         """Verify the Flask /batch_classify HTTP route."""

@@ -1,0 +1,2 @@
+# TicketAI Core Source Package
+

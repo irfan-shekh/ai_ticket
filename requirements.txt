@@ -4,32 +4,34 @@
 # =============================================================================
 
 # --- Core Web Framework & Security ---
-Flask==3.1.2
-Werkzeug==3.1.3
-python-dotenv==1.1.1
+Flask>=3.0.0
+Werkzeug>=3.0.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
 
-# --- Database Drivers (PostgreSQL / Neon & Cloud) ---
+# --- Database Drivers & Vector Extension (PostgreSQL / NeonDB + pgvector) ---
 psycopg2-binary>=2.9.9
+pgvector>=0.2.4
+
+# --- Google Gemini LLM & Vector Embeddings ---
+google-genai>=2.0.0
+
+# --- Knowledge Base & Document Ingestion ---
+pypdf>=4.0.0
 
 # --- Machine Learning, NLP & Inference Pipeline ---
-scikit-learn==1.7.2
-scipy==1.16.2
-numpy==2.3.3
-joblib==1.5.2
-nltk==3.9.1
-threadpoolctl==3.6.0
+scikit-learn>=1.4.0
+scipy>=1.11.0
+numpy>=1.26.0
+joblib>=1.3.0
+nltk>=3.8.1
+threadpoolctl>=3.2.0
 
-# --- Data Manipulation (Training, Audits & Benchmarking) ---
-pandas==2.3.2
-python-dateutil==2.9.0.post0
-pytz==2025.2
-tzdata==2025.2
+# --- Data Manipulation & Benchmarking ---
+pandas>=2.0.0
+python-dateutil>=2.8.2
+pytz>=2023.3
+tzdata>=2023.3
 
-# =============================================================================
-# Optional Development, EDA & Visualization Tools
-# (Uncomment below if running Jupyter Notebooks or generating offline plots)
-# =============================================================================
-# matplotlib==3.11.2
-# seaborn==0.13.2
-# ipython==9.17.1
-# ipykernel==7.4.0
+# --- Testing & Quality Assurance ---
+pytest>=8.0.0

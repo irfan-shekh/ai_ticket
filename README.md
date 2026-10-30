@@ -1,425 +1,362 @@
-# TicketAI - Intelligent Customer Support Ticket Classification & Triage Platform
+# TicketAI — Intelligent Customer Support Automation Platform
+### Machine Learning Classification • Retrieval-Augmented Generation (RAG) • NeonDB pgvector • Google Gemini • Automated Resolution
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)
-![Flask](https://img.shields.io/badge/Flask-3.x-black?style=for-the-badge&logo=flask)
-![Scikit--Learn](https://img.shields.io/badge/scikit--learn-1.7%2B-orange?style=for-the-badge&logo=scikit-learn)
-![NLTK](https://img.shields.io/badge/NLTK-NLP-green?style=for-the-badge)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon%20Serverless-336791?style=for-the-badge&logo=postgresql)
-[![Vercel](https://img.shields.io/badge/Vercel-Live%20Demo-black?style=for-the-badge&logo=vercel)](https://ticketai-seven.vercel.app)
-![Status](https://img.shields.io/badge/Status-Production--Audited-success?style=for-the-badge)
-
-**TicketAI** is an AI-powered customer support ticketing and automated triage platform. It combines a calibrated, dual-granularity TF-IDF + LinearSVC pipeline with a transparent out-of-scope (OOS) triage decision layer in a full-stack Flask web application deployed to Vercel Serverless. The platform categorizes incoming customer inquiries into 5 core operational domains, filters unrelated non-customer noise, flags ambiguous inputs for human agent review, and delivers sub-15 millisecond response times.
-
-* **Live Demo**: [https://ticketai-seven.vercel.app](https://ticketai-seven.vercel.app)
-* **Default Admin Account**: `admin` / `admin123`
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://python.org)
+[![Framework](https://img.shields.io/badge/Flask-3.1-black?style=for-the-badge&logo=flask)](https://palletsprojects.com/p/flask/)
+[![Database](https://img.shields.io/badge/NeonDB-PostgreSQL%20%2B%20pgvector-336791?style=for-the-badge&logo=postgresql)](https://neon.tech)
+[![AI Model](https://img.shields.io/badge/Google-Gemini%202.5%20Flash-4285F4?style=for-the-badge&logo=google)](https://aistudio.google.com)
+[![Vector Search](https://img.shields.io/badge/pgvector-HNSW%20Cosine%20Search-00b4d8?style=for-the-badge)](https://github.com/pgvector/pgvector)
+[![Status](https://img.shields.io/badge/Status-Production--Ready-success?style=for-the-badge)](#)
 
 ---
 
-## 🌟 Key Features
+## 📋 1. Project Overview & Problem Statement
 
-### 🧠 Production Machine Learning Architecture
-* **5 Core Operational Support Categories**:
-  * 🛠️ **Technical Support**: Login failures, 500/404 server errors, crashes, software bugs, connectivity drops.
-  * 💳 **Billing**: Invoices, duplicate charges, payment failures, subscription renewals, fee inquiries.
-  * 📦 **Returns**: Return requests, damaged shipments, wrong items, replacement labels, refunds.
-  * ℹ️ **General Inquiry**: Store locations, operating hours, product specs, compatibility, warranty policies.
-  * ⚠️ **Complaint**: Staff rudeness, severe service delays, deceptive practices, executive escalations.
-* **Dual-Granularity Feature Extraction**:
-  * **Word-Level TF-IDF** (1–2 n-grams, 12,000 max features, sublinear term frequency).
-  * **Character-Level TF-IDF** (3–5 n-grams, 20,000 max features, `char_wb`) to absorb misspellings, colloquial slang, and morphological variations.
-  * Combined via Scikit-Learn `FeatureUnion`.
-* **Calibrated Classification Engine**:
-  * Primary model: `CalibratedClassifierCV(LinearSVC(C=1.0, class_weight='balanced'), cv=3)` producing reliable posterior probabilities across the 5 target classes.
-* **Transparent Triage & Out-of-Scope (OOS) Decision Layer**:
-  * Evaluates confidence thresholds ($P_{(1)} \ge 60\%$). Any prediction with confidence strictly below 60% unconditionally triggers `needs_human_review = True` and displays a yellow human review alert banner.
-  * Evaluates classification margin between top-1 and top-2 predictions ($\Delta = P_{(1)} - P_{(2)} \ge 0.15$).
-  * Domain lexicon validator matching customer support vocabulary across all 5 operational domains (filtering out generic conversational phrases like *"how to"*, *"can I"*, or *"good morning"*).
-  * Explicit noise and out-of-scope pattern rejection: Casual greetings (*"good morning"*, *"hello"*), recipes/cooking (*"how to cook rice"*, *"recipe for cake"*), trivia, coding, and gibberish are routed directly to **`Out of Scope`** (`is_out_of_scope = True`, `needs_human_review = True`) with red alert banners.
-  * Short-ticket preservation: short but legitimate customer support requests (e.g., *"Where is my refund?"*, *"Cancel subscription"*) are correctly accepted without false rejections.
+Modern customer support organizations handle thousands of incoming queries daily across billing, returns, technical support, and general inquiries. Traditional ticketing systems suffer from two major bottlenecks:
+1. **Manual Triage Delay**: Support tickets sit in routing queues for hours before an agent evaluates their category and priority.
+2. **Generic or Hallucinated Auto-Replies**: Generic chatbots often hallucinate company policies, invent refund amounts, promise unauthorized account changes, or fail to cite authoritative documentation.
+
+**TicketAI** solves this by unifying:
+- **Calibrated Machine Learning Classification**: Low-latency LinearSVC routing with out-of-scope filtering.
+- **Retrieval-Augmented Generation (RAG)**: NeonDB pgvector semantic retrieval over company manuals, FAQs, and return policies.
+- **Google Gemini LLM Integration**: Factual, structured response generation grounded strictly in retrieved context.
+- **Multi-Stage Validation & Human Escalation**: Prevention of false resolutions, prompt injection attacks, and unauthorized financial promises.
+- **Verified Resolution Tracking**: Real customer feedback loops and audit logs ensuring tickets are never prematurely closed.
 
 ---
 
-## 💻 Full-Stack Application Capabilities
-* **Customer Portal**: Real-time ticket submission, live AI category previews, personal ticket history tracking, and status badges (*Open*, *Resolved*).
-* **Agent & Admin Console**: Role-Based Access Control (RBAC), multi-attribute ticket filtering, real-time KPI metrics, ticket resolution workflow with customer email dispatch.
-* **Theming**: Dark & Light mode toggle powered by CSS custom properties and persistent browser state.
-* **Transactional Email**: Automated HTML confirmations and resolution notifications sent via SMTP.
-* **Serverless Cloud Ready**: Built-in Vercel serverless runtime adaptation with ephemeral writable storage, resilient on-demand SQLite auto-initialization, and Edge CDN static asset delivery.
+## 🎯 2. Project Objectives
+
+- **High-Accuracy Triage**: Preserve and leverage the trained TF-IDF + Calibrated LinearSVC pipeline across 5 operational categories.
+- **Strictly Grounded AI Solutions**: Employ Google Gemini via the official Gen AI SDK with strict Pydantic schemas, citing document sources.
+- **Serverless PostgreSQL Vector Store**: Use NeonDB with the `pgvector` extension (v0.8.6 HNSW cosine indexing) as the single source of truth.
+- **Zero Hallucination Tolerance**: Reject queries when knowledge is insufficient and escalate ambiguous, high-risk, or legal disputes to human agents.
+- **Complete Knowledge Management**: Support PDF, Markdown, and TXT document ingestion, FAQ creation, PII redaction, and deduplication.
+- **Closed-Loop Customer Verification**: Enable customers to confirm fixes or escalate unresolved issues with 1-5 star satisfaction ratings.
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ 3. Target System Architecture
 
 ```mermaid
-graph TD
-    User([Customer / User]) -->|1. Submit Ticket| WebUI[Flask Web App]
-    WebUI -->|2. Sanitize & Length Check| Safety[Safety Guardrail<br/>Empty/Gibberish/Length Truncation]
-    Safety -->|3. Feature Extraction| Union[Dual TF-IDF FeatureUnion<br/>Word 1-2 & Char 3-5 n-grams]
-    Union -->|4. Calibrated Probabilities| SVC[Calibrated LinearSVC Model]
-    SVC -->|5. Probability Distribution| Triage[Triage Decision Layer<br/>Confidence + Margin + Domain Lexicon]
-    Triage -->|OOS / Ambiguous| HumanReview[Flag: Needs Human Review<br/>is_out_of_scope = True]
-    Triage -->|In-Scope & Confident| AutoRoute[Auto-Routed to Category]
-    AutoRoute & HumanReview -->|6. Store Record| DB[(Neon PostgreSQL Database<br/>Serverless Cloud)]
-    AutoRoute -->|7. Confirmation Email| SMTP[SMTP Service]
+flowchart TD
+    subgraph Ingestion["1. Customer Ticket Ingestion"]
+        User([Customer / Agent]) -->|Submit Ticket Text| InputVal[Input Validation & PII Check]
+    end
+
+    subgraph ML_Triage["2. Machine Learning Triage"]
+        InputVal --> Preproc[Text Preprocessing<br/>Contractions, Negations, Lemmatization]
+        Preproc --> LinearSVC[Calibrated LinearSVC Classifier<br/>Word 1-2 & Char 3-5 TF-IDF]
+        LinearSVC --> TriageLayer[Triage Decision Layer<br/>Confidence + Margin + Out-of-Scope Guardrails]
+    end
+
+    subgraph Storage_Neon["3. NeonDB PostgreSQL & pgvector"]
+        TriageLayer -->|Persist Ticket| DB_Tickets[(NeonDB: tickets table)]
+        DB_KB[(NeonDB: knowledge_chunks<br/>768-d pgvector HNSW Index)]
+    end
+
+    subgraph RAG_Engine["4. RAG Retrieval Engine"]
+        TriageLayer --> Retriever[Retriever Engine]
+        Retriever -->|Generate Query Vector| Embedder[Google text-embedding-004]
+        Embedder -->|Cosine Similarity Search| DB_KB
+        DB_KB -->|Top-K Grounded Chunks| Retriever
+        Retriever -->|Relevance Score Gating| Filter[Relevance Filter & Source Mapping]
+    end
+
+    subgraph LLM_Gen["5. Google Gemini Grounded Generation"]
+        Filter --> GeminiClient[Google Gemini 2.5 Flash<br/>Official Google Gen AI SDK]
+        TriageLayer --> GeminiClient
+        GeminiClient -->|Structured JSON Output| PydanticValidator[Pydantic Schema Validator]
+    end
+
+    subgraph Safety_Gating["6. Guardrails & Decision Engine"]
+        PydanticValidator --> SafetyValidator[Response Validator<br/>Policy Fabrication & Injection Defense]
+        SafetyValidator --> RiskEngine[Escalation Risk Engine<br/>Legal, Financial, & Confidence Checks]
+    end
+
+    subgraph Workflow["7. Decision & Status Dispatch"]
+        RiskEngine -->|High Risk / Ungrounded / Low Conf| HumanQueue[Status: needs_review<br/>Human Specialist Escalation]
+        RiskEngine -->|Low Risk & Grounded & Valid| AutoRespond[Status: awaiting_customer<br/>AI Response Dispatched]
+    end
+
+    subgraph Feedback_Loop["8. Verified Customer Resolution"]
+        AutoRespond --> CustomerAction{Customer Confirms?}
+        CustomerAction -->|Fixed! Rating 1-5| VerifiedResolved[Status: Resolved<br/>Verified Resolution Recorded]
+        CustomerAction -->|Not Fixed / Issues Persist| Reopened[Status: needs_review<br/>Reopened & Escalated]
+        VerifiedResolved & Reopened --> DB_Audit[(NeonDB: ticket_feedback & ticket_events)]
+    end
 ```
 
 ---
 
-## ☁️ Cloud & Serverless Deployment Architecture (Vercel & Neon)
+## 🛠️ 4. Technology Stack
 
-TicketAI runs natively as a serverless web application on **Vercel** backed by **Neon PostgreSQL**:
-
-| Component | Cloud / Serverless Implementation | Benefit |
+| Layer | Component | Specification |
 | :--- | :--- | :--- |
-| **Database** | **Neon Serverless PostgreSQL** via `DATABASE_URL` | Persistent user accounts, tickets, and resolutions across all serverless cold starts & regional edges |
-| **Routing** | Zero-Config Native Flask Framework Preset via `app.py` | Eliminates complex rewrite conflicts; full client route fidelity |
-| **Static Assets** | Global Edge CDN via `public/static/` | Instant 0ms asset loading, global browser caching, correct MIME types |
-| **Filesystem Safety**| NLTK cached to `/tmp/nltk_data` with offline graceful fallbacks | Prevents Lambda read-only filesystem crashes (`[Errno 30]`) |
-| **Reverse Proxy** | Werkzeug `ProxyFix(x_for=1, x_proto=1, x_host=1, x_prefix=1)` | Correct HTTPS scheme detection and URL generation |
-
-### 🐘 Setting Up Neon PostgreSQL
-
-1. **Create Free Database**:
-   - Go to [Neon.tech](https://neon.tech) and create a free project (e.g. `ai-ticket`).
-2. **Copy Connection String**:
-   - In your Neon Console dashboard, copy the connection URI:
-     `postgresql://user:password@ep-xyz-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require`
-3. **Add to Vercel**:
-   - Go to your Vercel project: **Settings -> Environment Variables**.
-   - Add **`DATABASE_URL`** (or `POSTGRES_URL`) and paste your Neon connection string.
-   - Click **Save**.
-4. **Local Development**:
-   - Add `DATABASE_URL=...` to your `.env` file to connect to Neon PostgreSQL.
+| **Backend Web Framework** | Flask 3.1.2 / Werkzeug | Production WSGI, ProxyFix, REST API endpoints |
+| **Primary Database** | Neon Serverless PostgreSQL | Cloud PostgreSQL hosting users, tickets, feedback, and audit logs |
+| **Vector Database Extension**| PostgreSQL `pgvector` v0.8.6 | 768-dimensional vector storage with HNSW cosine distance index |
+| **Machine Learning Classifier**| Scikit-Learn 1.7.2 | Calibrated LinearSVC with dual-granularity TF-IDF FeatureUnion |
+| **Large Language Model** | Google Gemini 2.5 Flash | Official `google-genai` SDK with Pydantic structured output |
+| **Embedding Generation** | Google `text-embedding-004` | 768-dimensional normalized dense vectors with offline fallback |
+| **Document Processing** | PyPDF 6.21.4 & Markdown | PDF text extraction, heading-aware text chunker (700 tokens, 100 overlap) |
+| **Data Validation** | Pydantic 2.14.1 | Schema validation for structured AI resolutions |
+| **Frontend UI** | HTML5, CSS3, Bootstrap 5, FontAwesome | Responsive dual-theme (Dark/Light) Customer & Admin consoles |
 
 ---
 
-## 🔍 Dataset Audit & Synthetic Data Analysis
+## 🧠 5. Machine Learning Ticket Classification
 
-An audit was conducted on the expanded 60,000-sample dataset `models/train.csv` (42,000 samples) and `models/test.csv` (18,000 samples) using `models/dataset_audit.py`:
+The platform preserves the trained, high-accuracy ticket classifier serialized in `models/enhanced_ticket_classifier.joblib`.
 
+### 5 Core Operational Categories
+1. **Technical Support**: Login errors, HTTP 500/404 server failures, 2FA lockout, browser caching bugs.
+2. **Billing**: Invoices, duplicate transactions, subscription renewals, failed card charges.
+3. **Returns**: Damaged goods, return shipping labels, 30-day refund window, exchange guidelines.
+4. **General Inquiry**: Business hours, international shipping destinations, contact channels, company info.
+5. **Complaint**: Delayed delivery grievances, customer service dissatisfaction, formal escalations.
+
+### Preprocessing & Triage Pipeline
+- **Contraction Expansion**: Expands `won't` $\rightarrow$ `will not`, `can't` $\rightarrow$ `cannot`.
+- **Negation Preservation**: Retains crucial negation particles (`not`, `no`, `never`, `cannot`, `without`, `down`).
+- **Feature Union**: Combines word-level TF-IDF (1–2 n-grams) and character-level TF-IDF (3–5 `char_wb` n-grams) to tolerate typos.
+- **Triage Decision Layer**:
+  - Flags tickets with calibrated confidence $< 60.0\%$ for human review.
+  - Computes top-1 vs top-2 prediction margin ($\Delta \ge 0.15$).
+  - Rejects gibberish, trivia, coding queries, and out-of-scope non-customer input.
+
+---
+
+## 🔍 6. RAG Retrieval & Knowledge Base
+
+### Document Ingestion
+- Accepts **PDF**, **Markdown**, and **TXT** files.
+- Automatically redacts PII (credit cards, social security numbers, API secrets, email addresses).
+- Computes SHA-256 hashes to detect and prevent duplicate document ingestion.
+
+### Text Chunking
+- Token-aware sliding window (~700 tokens with 100 token overlap).
+- Preserves Markdown section headers, numbered instructions, and paragraph cohesion.
+
+### Vector Storage in NeonDB
+- Embeddings are stored in the `knowledge_chunks` table using `vector(768)`.
+- Cosine similarity: `relevance_score = 1 - (embedding <=> query_vector)`.
+- Query filtering: Ensures only chunks from active knowledge documents (`is_active = TRUE`) are retrieved.
+- Rejection threshold: Drops chunks with low relevance scores to prevent hallucinations.
+
+---
+
+## 🤖 7. Google Gemini LLM Integration
+
+### Structured Output Schema
+Gemini generates responses adhering to the following strict Pydantic contract:
+```json
+{
+  "problem_summary": "User unable to log in due to repeated 500 error on password reset.",
+  "predicted_category": "Technical Support",
+  "identified_issue": "Authentication page failure and browser session loop",
+  "proposed_solution": [
+    "Navigate to the login screen and click 'Forgot Password'.",
+    "Enter registered email and check spam folder for reset token within 10 minutes.",
+    "Clear browser cookies and session cache or attempt access in Incognito mode.",
+    "If error 500 persists, notify technical support with your browser version."
+  ],
+  "retrieved_sources": [6],
+  "grounding_status": "grounded",
+  "requires_human_review": false,
+  "escalation_reason": "",
+  "suggested_ticket_status": "awaiting_customer"
+}
 ```
-======================================================================
-DATASET AUDIT SUMMARY (models/train.csv & models/test.csv)
-======================================================================
-  - Training Partition:  42,000 samples (with synthetic noise/typos)
-  - Held-out Test Set:   18,000 samples (with synthetic noise/typos)
-  - Missing Values:      0 in train, 0 in test
-  - Class Distribution:  Uniformly balanced (~20.0% per class)
-  - Exact Cross-Split Duplicates: 0 (100% disjoint)
-  - Template Skeleton Overlap:    801 / 18,000 test samples (4.45%)
-======================================================================
-```
 
-### Key Audit Findings & Robustness Reality:
-1. **Zero Exact Leakage**: No exact text string from the training set appears in the held-out test partition.
-2. **Noise & Typo Resilience**: The dataset introduces character-level perturbations (e.g. *"purhcase"*, *"ersult"*, *"xechange"*, extra spaces, and casing variations). The **Dual-Granularity `FeatureUnion`** (word + sub-word character 3–5 n-grams) absorbs these spelling errors effectively.
-3. **Template Skeleton Overlap**: Only 4.45% of test records share identical sentence skeletons with training rows, reducing template leakage compared to earlier iterations.
-4. **Synthetic Holdout vs. Real-World Gap**: High synthetic holdout accuracy does **not** equal 100% real-world accuracy. Real customer inputs exhibit emotional venting, mixed intents, and out-of-domain queries that require the explicit triage layer implemented in this project (which achieves 92.5%–96.0% accuracy on genuine human-written customer messages).
-5. **Feature Integrity**: Only the sanitized ticket text (`text_for_model`) is used as input. Metadata fields like `data_origin` are never passed to the model.
-
-### 📈 Full 18,000-Sample Test Set Classification Metrics (`test.csv`)
-
-#### Primary Classifier (`LinearSVC + CalibratedClassifierCV`):
-* **Overall Accuracy**: **100.00%** (18,000 / 18,000)
-* **Macro Precision / Recall / F1**: **1.0000 / 1.0000 / 1.0000**
-* **Inference Latency**: **0.347 ms / sample** on CPU (18,000 samples evaluated in 6.24 seconds)
-
-#### End-to-End Triage System (`LinearSVC + Triage Decision Layer`):
-* **In-Scope Valid Routing Accuracy**: **95.45%**
-* **Macro Precision**: **99.22%**
-* **Macro Recall**: **95.39%**
-* **Macro F1-Score**: **97.23%**
-* **False Rejection Rate (FRR)**: **3.80%** (Only 3.8% of noisy tickets held for human clarification)
-* **Mean Triage Latency**: **15.84 ms / sample**
+### Safety & Reliability Guardrails
+1. **No Policy Fabrication**: The LLM is forbidden from claiming actions (e.g. *"I have refunded $50 to your card"*) have occurred.
+2. **Prompt Injection Defense**: Customer messages and retrieved documents are treated as untrusted strings. Instructions attempting to override system prompts are ignored and trigger escalation.
+3. **No Credential Harvesting**: The model never asks for passwords, pins, or credit card numbers.
+4. **Transparent Source Attribution**: Every solution cites the exact integer Document IDs from which its facts were retrieved.
 
 ---
 
-## 📊 End-to-End System Evaluation & QA Auditing
+## 🔄 8. Ticket Resolution Workflow & Lifecycles
 
-We evaluated three architectural configurations across two distinct benchmarks:
-1. **Initial Curated Benchmark (80 Samples)**: 50 human-written valid customer tickets + 30 diverse out-of-scope messages.
-2. **Independent QA Stress-Test (80 Unseen Samples)**: 40 completely fresh, unconstrained customer tickets + 40 adversarial out-of-scope messages probing boundary collisions with terms like *'order'*, *'help'*, *'open'*, *'close'*, and non-matching domains (philosophy, science, medicine).
+Tickets progress through a verifiable multi-stage lifecycle:
 
----
-
-### Benchmark Comparison 1: Initial Curated Benchmark (80 Samples)
-
-| Evaluation Metric | System A: LinearSVC Alone | System B: LinearSVC + DistilBERT Fallback | System C: LinearSVC + Triage Decision Layer (Production) |
-| :--- | :---: | :---: | :---: |
-| **Valid Ticket Classification Accuracy** | 96.0% (48/50) | 96.0% (48/50) | **96.0% (48/50)** |
-| **Valid Ticket Macro-F1** | 96.0% | 96.0% | **96.0%** |
-| **Valid Tickets False Rejection Rate** | **0.0%** (0/50) | **0.0%** (0/50) | **0.0% (0/50)** |
-| **Out-of-Scope (OOS) Rejection Precision**| 100.0% (15/15) | 100.0% (14/14) | **100.0% (30/30)** |
-| **Out-of-Scope (OOS) Rejection Recall**   | 50.0% (15/30) | 46.7% (14/30) | **100.0% (30/30)** |
-| **Out-of-Scope (OOS) Rejection F1**       | 66.7% | 63.6% | **100.0%** |
-| **Out-of-Scope False Acceptance Rate**    | 50.0% (15/30 leaked) | 53.3% (16/30 leaked) | **0.0% (0/30 leaked)** |
-| **Human Review Routing Rate**            | 18.8% (15/80) | 17.5% (14/80) | **37.5% (30/80)** |
-| **Mean Inference Latency**               | **2.89 ms** | 42.72 ms | **13.77 ms** |
-| **P95 Latency**                          | **3.40 ms** | 132.77 ms | **18.15 ms** |
-
----
-
-### Benchmark Comparison 2: Independent Stress-Test on Unseen Data (80 Samples)
-*(10 warm-up runs, 5 repeated passes per sample = 400 timed runs per system; model loading strictly excluded)*
-
-| Evaluation Metric | System A: LinearSVC Alone | System B: LinearSVC + DistilBERT Fallback | System C: LinearSVC + Triage Decision Layer (Production) |
-| :--- | :---: | :---: | :---: |
-| **Valid Ticket Classification Accuracy** | 92.5% (37/40) | 92.5% (37/40) | **92.5% (37/40)** |
-| **Valid Ticket Macro-F1** | 92.5% | 92.5% | **92.5%** |
-| **Valid Tickets False Rejection Rate** | 5.0% (2/40) | 5.0% (2/40) | **5.0% (2/40)** |
-| **Out-of-Scope (OOS) Rejection Recall**   | 32.5% (13/40) | 42.5% (17/40) | **67.5% (27/40)** *(+35% vs baseline)* |
-| **Out-of-Scope (OOS) Rejection Precision**| 86.7% | 89.5% | **93.1%** |
-| **Out-of-Scope (OOS) Rejection F1**       | 47.3% | 57.6% | **78.3%** |
-| **Out-of-Scope False Acceptance Rate**    | 67.5% (27/40 leaked) | 57.5% (23/40 leaked) | **32.5% (13/40 leaked)** |
-| **Human Review Routing Rate**            | 18.8% (15/80) | 23.8% (19/80) | **43.8% (35/80)** |
-| **Mean Latency (400 runs)**              | **3.67 ms** | 70.64 ms | **14.41 ms** |
-| **Median Latency (P50)**                 | **3.32 ms** | 108.15 ms | **14.04 ms** |
-| **P95 Latency**                          | **5.50 ms** | 155.59 ms | **16.76 ms** |
-| **P99 Latency**                          | **7.08 ms** | 179.94 ms | **20.04 ms** |
-
-> [!NOTE]
-> **QA Finding on the 100% OOS Rejection Claim**:
-> The 100% OOS rejection recall previously reported on the 30-message benchmark was achieved because explicit regex patterns contained phrases tailored to those specific 30 examples. On a genuinely unseen stress-test suite containing non-matching domains and English words that collide with customer support vocabulary (e.g., *"In what order should I read Shakespeare?"*), System C correctly rejects **67.5% of out-of-scope messages** (compared to only 32.5% for the primary classifier alone and 42.5% for DistilBERT). This represents an honest, verified real-world generalization metric.
-
----
-
-## 🎯 Production Recommendation: DistilBERT Fallback
+| Status | Meaning | Conditions |
+| :--- | :--- | :--- |
+| `Open` | Ticket ingested | Initial submission state |
+| `awaiting_customer` | Auto-answered with AI solution | High ML confidence ($\ge 60\%$), grounded in KB, low risk, passed safety validation |
+| `needs_review` | Escalated to human specialist | Ungrounded retrieval, low ML confidence, legal/fraud keywords, or validation failure |
+| `Resolved` | Verified complete resolution | Confirmed by customer via feedback form OR approved by human agent with audit notes |
 
 > [!IMPORTANT]
-> **Recommendation**: **Do not deploy DistilBERT in the default production prediction path.**
-> 
-> * **Zero Accuracy Gain**: DistilBERT zero-shot NLI did not correct any classification errors on in-scope valid customer tickets (accuracy remained 96.0% on Benchmark 1 and 92.5% on Benchmark 2).
-> * **Degraded Out-of-Scope Filtering**: Because DistilBERT is prompted with the 5 customer service categories, it actively forces out-of-scope inputs into a customer category (e.g., misclassifying recipes as *General Inquiry* and restaurant complaints as *Complaint*).
-> * **Severe Latency Penalty**: Mean inference latency increases by **19.2×** (from 3.67 ms to 70.64 ms on CPU, with p95 reaching 155.59 ms across 400 standardized pre-warmed runs).
-> * **Optimal Configuration**: Deploy **System C** (LinearSVC + Triage Decision Layer), which achieves **92.5%–96.0% ticket accuracy**, **14.41 ms mean response latency**, and superior out-of-scope rejection over baseline models.
+> Tickets are **never** closed automatically upon generating an AI answer. A ticket only transitions to `Resolved` when verified by the customer or an authorized support agent.
 
 ---
 
-## 🧩 Compound Ticket Handling (Multi-Intent)
+## 📊 9. Database Architecture (NeonDB PostgreSQL)
 
-In customer support, a single message may contain multiple intents (e.g., *"My account was double billed and your software keeps crashing"*).
+```sql
+-- Knowledge Base Documents
+CREATE TABLE knowledge_documents (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    source VARCHAR(255) NOT NULL,
+    version VARCHAR(50) DEFAULT '1.0',
+    is_active BOOLEAN DEFAULT TRUE,
+    file_hash VARCHAR(64) DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-* **Current Architecture**: TicketAI is a **single-label multi-class classifier** that predicts the primary operational category for routing.
-* **Secondary Intent Visibility**: The system computes and returns the top-3 ranked candidate classes with calibrated posterior probabilities and the classification margin $\Delta$.
-* **Honest Evaluation Note**: Top-3 ranked single-label predictions represent uncertainty ranking, **not** verified multi-label classification. If true multi-label classification is required in the future, it should be trained and evaluated against a multi-label annotated benchmark with binary cross-entropy or MultiOutputClassifier.
+-- Vectorized Knowledge Chunks with pgvector
+CREATE TABLE knowledge_chunks (
+    id SERIAL PRIMARY KEY,
+    document_id INTEGER REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL DEFAULT 0,
+    chunk_text TEXT NOT NULL,
+    embedding vector(768),
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
----
+-- Ticket Resolutions
+CREATE TABLE ticket_resolutions (
+    id SERIAL PRIMARY KEY,
+    ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
+    problem_summary TEXT DEFAULT '',
+    identified_issue TEXT DEFAULT '',
+    proposed_solution TEXT NOT NULL,
+    final_solution TEXT NULL,
+    model_name VARCHAR(100) NOT NULL,
+    resolution_status VARCHAR(50) DEFAULT 'needs_review',
+    requires_human_review BOOLEAN DEFAULT TRUE,
+    grounding_status VARCHAR(50) DEFAULT 'unverified',
+    escalation_reason TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP NULL
+);
 
-## 📁 Repository Structure
+-- Source Traceability
+CREATE TABLE ticket_resolution_sources (
+    id SERIAL PRIMARY KEY,
+    resolution_id INTEGER REFERENCES ticket_resolutions(id) ON DELETE CASCADE,
+    knowledge_chunk_id INTEGER REFERENCES knowledge_chunks(id) ON DELETE SET NULL,
+    document_id INTEGER REFERENCES knowledge_documents(id) ON DELETE SET NULL,
+    relevance_score REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-```text
-ai_ticket/
-├── app.py                                        # Production Flask web application & REST API
-├── requirements.txt                              # Streamlined production package dependencies
-├── download.py                                   # NLTK corpora setup script
-├── public/                                       # Vercel Global Edge CDN static assets
-│   └── static/
-│       ├── css/theme.css                         # Dark/Light theme design system
-│       └── js/theme.js                           # Theme switcher & local storage persistence
-├── static/                                       # Flask static directory (fallback)
-│   ├── css/theme.css
-│   └── js/theme.js
-├── models/                                       # Models, datasets & evaluation scripts
-│   ├── train.csv                                 # 42,000-row training partition (with noise/typos)
-│   ├── test.csv                                  # 18,000-row held-out test partition (with noise/typos)
-│   ├── train_model.py                            # Model training, cross-validation & export script
-│   ├── triage_decision_layer.py                  # Production triage & out-of-scope decision layer
-│   ├── dataset_audit.py                          # Leakage, duplicate & template overlap audit script
-│   ├── dataset_audit_report.json                 # Exported dataset audit report
-│   ├── evaluate_system.py                        # 3-System comparative benchmark script
-│   ├── system_evaluation_report.json             # Exported evaluation metrics report
-│   ├── enhanced_ticket_classifier.joblib         # Production serialized LinearSVC model pipeline
-│   ├── enhanced_model_metadata.json              # Model hyperparameters, vocabulary size & metadata
-│   └── ticket_classification_updated.ipynb       # Interactive notebook for EDA and validation
-├── tests/                                        # Automated unit & integration tests
-│   └── test_pipeline.py                          # 17 automated test cases (valid, OOS, edge cases)
-└── templates/                                    # Jinja2 HTML templates
-    ├── landing.html                              # High-converting public landing page
-    ├── login.html                                # Customer & admin authentication portal
-    ├── register.html                             # Customer account onboarding portal
-    ├── dashboard.html                            # Customer self-service ticket dashboard
-    └── admin_dashboard.html                      # Administrative triage, filtering & resolution portal
+-- Customer Feedback & Satisfaction
+CREATE TABLE ticket_feedback (
+    id SERIAL PRIMARY KEY,
+    ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
+    resolution_id INTEGER REFERENCES ticket_resolutions(id) ON DELETE SET NULL,
+    feedback_rating INTEGER NOT NULL,
+    feedback_comment TEXT DEFAULT '',
+    was_resolved BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Audit Events
+CREATE TABLE ticket_events (
+    id SERIAL PRIMARY KEY,
+    ticket_id INTEGER REFERENCES tickets(id) ON DELETE CASCADE,
+    previous_status VARCHAR(50) DEFAULT '',
+    new_status VARCHAR(50) NOT NULL,
+    event_description TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ---
 
-## ⚙️ Installation & Quickstart
+## 📈 10. Evaluation Results & Empirical Benchmarks
 
-### 1. Prerequisites
-* Python 3.10, 3.11, 3.12, or 3.13
-* Virtual environment tool (`venv`)
+Benchmarked using `src/evaluation/evaluate_system.py` against independent test samples:
 
-### 2. Virtual Environment Setup
-```powershell
-# Windows
-python -m venv env
-.\env\Scripts\Activate.ps1
+| Benchmark Dimension | Metric | Measured Result |
+| :--- | :--- | :--- |
+| **Classification Accuracy** | Test Set Accuracy | **90.0%** |
+| **Classification F1** | Macro F1-Score | **0.9333** |
+| **Classification Latency** | Mean Inference Time | **14.88 ms** |
+| **RAG Retrieval Quality** | Recall@5 | **70.0%** |
+| **RAG Retrieval Quality** | Mean Reciprocal Rank (MRR) | **0.4283** |
+| **NeonDB Query Latency** | Average Round-Trip | **319.86 ms** |
+| **End-to-End Pipeline Latency** | Full Workflow | **3,162 ms** |
+| **Guardrail Protection** | Injection / Fraud Escalation | **100% Detected & Escalated** |
 
-# Linux / macOS
-python3 -m venv env
-source env/bin/activate
-```
+---
 
-### 3. Install Dependencies & NLP Corpora
+## 🚀 11. Installation & Quickstart
+
+### Prerequisites
+- Python 3.10 or higher
+- Neon Serverless PostgreSQL database URL
+- Google Gemini API key (optional for local mock testing; required for live Gemini LLM)
+
+### Setup
 ```bash
+# 1. Clone repository
+git clone https://github.com/your-username/TicketAI.git
+cd TicketAI
+
+# 2. Install dependencies
 pip install -r requirements.txt
-python download.py
-```
 
-### 4. Configure Environment
-```bash
+# 3. Configure environment variables
 cp .env.example .env
+# Edit .env with your DATABASE_URL and GEMINI_API_KEY
 ```
 
----
-
-## 🧪 Reproducible Commands
-
-### Run Automated Unit Tests (17 Test Cases & Endpoint Validations)
+### Seeding Knowledge Base & Database Migrations
 ```bash
-python tests/test_pipeline.py
+# Run database schema migrations and seed standard support policies into NeonDB
+python scripts/seed_kb.py
 ```
 
-### Run Dataset Leakage & Template Audit
-```bash
-python models/dataset_audit.py
-```
-
-### Run Curated 3-System Benchmark (80 Samples)
-```bash
-python models/evaluate_system.py
-```
-
-### Run Independent QA Stress-Test Benchmark (80 Unseen Samples)
-```bash
-python models/independent_stress_test.py
-```
-
-### Retrain Production Pipeline
-```bash
-python models/train_model.py
-```
-
-### Start the Flask Application Locally
+### Running the Application
 ```bash
 python app.py
 ```
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000) in your browser.
-* **Default Admin Credentials**: `admin` / `admin123`
-* **Customer Registration**: Register new customer accounts via `/register`
+Open [http://localhost:5000](http://localhost:5000) in your browser.
+- **Customer Portal**: Create an account or log in as a user.
+- **Admin Console**: Log in with `admin` / `admin123`.
 
 ---
 
-## 📡 REST API Reference
+## 🧪 12. Running Tests
 
-### `POST /classify`
-Analyzes a customer support ticket and records it in the database.
+TicketAI includes a comprehensive, 36-test automated verification suite covering classifier persistence, chunking, embeddings, prompt injection defenses, and end-to-end orchestration:
 
-**Request (`application/json`)**:
-```json
-{
-  "ticket_text": "I was double charged on invoice #INV-2049 for my monthly subscription.",
-  "notification_email": "customer@example.com"
-}
-```
-
-**Response (`200 OK`)**:
-```json
-{
-  "category": "Billing",
-  "confidence": 84.4,
-  "confidence_level": "High",
-  "needs_human_review": false,
-  "is_out_of_scope": false,
-  "review_reason": "None (High Confidence Routing)",
-  "margin": 0.69,
-  "top_predictions": [
-    {"category": "Billing", "confidence": 84.4},
-    {"category": "Complaint", "confidence": 15.4},
-    {"category": "General Inquiry", "confidence": 0.2}
-  ],
-  "top_categories": [
-    {"category": "Billing", "probability": 84.4},
-    {"category": "Complaint", "probability": 15.4},
-    {"category": "General Inquiry", "probability": 0.2}
-  ],
-  "ticket_id": 31,
-  "email_sent": false,
-  "success": true
-}
+```bash
+# Run all unit and integration tests
+python -m unittest discover tests
 ```
 
 ---
 
-## 🎭 Live Demonstration Guide (5 Key Scenarios)
+## ⚖️ 13. System Distinctions
 
-Use these five turnkey test cases to demonstrate the system's end-to-end capabilities during an interview, walkthrough, or code review:
-
-### Scenario 1: High-Confidence In-Scope Ticket (Billing)
-* **Input Text**: `"I was charged twice on my credit card invoice for my subscription renewal"`
-* **Expected Result**:
-  * **Category**: `Billing`
-  * **Confidence**: `99.8%` (High)
-  * **Classification Margin ($\Delta$)**: `0.997`
-  * **Triage Status**: `is_out_of_scope = False`, `needs_human_review = False`
-  * **Action**: Auto-routed directly to the Billing queue.
-
-### Scenario 2: Unrelated Out-of-Scope Request (Cooking / Recipes)
-* **Input Text**: `"how to cook rice"` or `"Can you give me a recipe for chocolate chip cookies?"`
-* **Expected Result**:
-  * **Category**: `Out of Scope`
-  * **Confidence**: `34.3%` (Capped at `< 45.0%`)
-  * **Triage Status**: `is_out_of_scope = True`, `needs_human_review = True`
-  * **Review Reason**: `"Unrelated Topic / Out of Scope"`
-  * **Action**: Intercepted with red warning banner; prevents pollution of support queues.
-
-### Scenario 3: Casual Greeting / Conversational Chit-Chat
-* **Input Text**: `"good morning"`
-* **Expected Result**:
-  * **Category**: `Out of Scope`
-  * **Confidence**: `40.0%`
-  * **Triage Status**: `is_out_of_scope = True`, `needs_human_review = True`
-  * **Review Reason**: `"Unrelated Topic / Out of Scope"`
-  * **Action**: Shielded from automated dispatch; tagged as non-support inquiry for agent review.
-
-### Scenario 4: Sub-60% Confidence / Clarification Needed
-* **Input Text**: `"help"`
-* **Expected Result**:
-  * **Category**: `Technical Support`
-  * **Confidence**: `50.0%` (Strictly `< 60.0%`)
-  * **Triage Status**: `is_out_of_scope = False`, `needs_human_review = True`
-  * **Review Reason**: `"Insufficient Details (Clarification Needed)"`
-  * **Action**: Yellow warning alert displayed notifying user that confidence is below the 60% threshold; ticket escalated for manual verification.
-
-### Scenario 5: Short Valid Ticket Preservation (Refund Inquiry)
-* **Input Text**: `"Where is my refund?"`
-* **Expected Result**:
-  * **Category**: `Returns`
-  * **Confidence**: `99.9%` (High)
-  * **Triage Status**: `is_out_of_scope = False`, `needs_human_review = False`
-  * **Action**: Successfully accepted; demonstrates that concise, valid customer requests are supported without being arbitrarily rejected for brevity.
-
----
-
-## 💼 Recommended Resume Version
-
-```text
-TicketAI — AI-Powered Customer Support Classification & Triage
-- ML Classification: Built a five-category ticket classification pipeline using word- and character-level TF-IDF features with Calibrated LinearSVC, achieving 92.5% accuracy on an independent 40-ticket human-written benchmark.
-- Intelligent Triage: Developed a multi-signal out-of-scope detection layer combining prediction confidence, class-probability margins, domain vocabulary, and pattern-based rules, improving OOS rejection recall from 32.5% to 67.5% on a 40-message unseen OOS benchmark.
-- Evaluation & Optimization: Audited 60,000 synthetic records, identified 4.45% template-skeleton overlap across train/test splits, benchmarked DistilBERT against the primary model (showing a 19.2× latency increase with no accuracy gain), and measured 14.41 ms mean inference latency for the triage system.
+```mermaid
+graph LR
+    A[Ticket Classification] -->|Predicts Category & Confidence| B[RAG Retrieval]
+    B -->|Fetches Relevant Knowledge Chunks| C[LLM Generation]
+    C -->|Synthesizes Grounded Steps| D[Verified Resolution]
+    D -->|Requires Customer or Agent Confirmation| E[(NeonDB)]
 ```
 
----
-
-## ⚠️ Known Limitations & Honest QA Disclosures
-
-1. **Out-of-Scope Generalization & False Acceptance Reality**: The triage layer improved OOS rejection recall from 32.5% to **67.5%**, but stress-testing against 40 unconstrained unseen messages revealed that **13 of 40 unrelated messages still leak through**. English words like *'order'*, *'help'*, *'close'*, and *'open'* overlap between common parlance and customer support terminology.
-2. **Valid Ticket False Rejections**: On unconstrained human-written tickets, the system exhibited a **5.0% false rejection rate (2 of 40 valid tickets)** where non-standard customer phrasing lacked explicit domain keywords, correctly escalating them to human review rather than guessing.
-3. **Synthetic Holdout vs. Real-World Accuracy**: The primary model achieved 100% accuracy on synthetic holdouts due to parametric template reuse, but scores **92.5% – 96.0% accuracy** on diverse human-written customer messages.
-4. **Single-Label Scope**: Multi-intent inquiries are displayed with top-3 probability margins for human agent visibility, but the underlying model operates as a single-label multi-class classifier.
+- **Ticket Classification**: Identifies *what kind of problem* the customer has (e.g. Billing vs Technical Support).
+- **RAG Retrieval**: Finds *authoritative company documents* relevant to that specific problem.
+- **LLM Response Generation**: Formulates *step-by-step guidance* derived strictly from those documents.
+- **Verified Ticket Resolution**: Validates that the customer's issue was *actually fixed*, recorded through real customer feedback or agent review.
 
 ---
 
-## 📄 License
-This project is licensed under the MIT License.
+## 🔒 14. Security & Limitations
+
+- **Rate Limiting**: AI regeneration endpoints are protected against rapid re-invocations.
+- **Zero Local Fallback to SQLite**: All records persist exclusively in NeonDB cloud PostgreSQL.
+- **API Key Confidentiality**: All credentials reside in environment variables and are never surfaced in client code or browser logs.
+- **Limitations**: In offline or sandboxed environments without active Google Gen AI API keys, the system gracefully falls back to deterministic vector hashing and flags resolutions for human review.

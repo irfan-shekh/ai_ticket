@@ -616,8 +616,10 @@
             const reason = document.getElementById('resReason');
             if (isOos) {
                 reason.innerHTML = `<i class="fas fa-shield-alt text-danger me-1"></i> <strong>Out of Scope:</strong> ${data.review_reason || 'Message does not match support scope'}. Flagged for human agent review.`;
-            } else if (needsReview || conf < 60) {
+            } else if (conf < 60) {
                 reason.innerHTML = `<i class="fas fa-user-clock text-warning me-1"></i> <strong>Human Review Needed:</strong> Confidence score (${conf.toFixed(1)}%) is below 60% threshold. Escalated for manual verification.`;
+            } else if (needsReview) {
+                reason.innerHTML = `<i class="fas fa-user-shield text-warning me-1"></i> <strong>Specialist Review Needed:</strong> Category identified with high confidence (${conf.toFixed(1)}%). Ticket resolution requires agent verification: ${data.review_reason || "Troubleshooting steps require human validation."}`;
             } else {
                 reason.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i> <strong>Decision Layer:</strong> Calibrated confidence verified. Routed to ${cat} queue.`;
             }

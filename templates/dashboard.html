@@ -409,6 +409,16 @@
 
                                 <div id="result-triage-alert" class="mt-3"></div>
 
+                                <!-- AI Proposed Solution Container -->
+                                <div id="ai-solution-box" class="mt-3 p-3 rounded d-none" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25);">
+                                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                        <span class="fw-bold gradient-text small"><i class="fas fa-sparkles me-1"></i> AI Suggested Troubleshooting Steps:</span>
+                                        <span id="ai-grounding-badge" class="badge bg-dark border text-muted small"></span>
+                                    </div>
+                                    <div id="ai-solution-text" class="small mb-2 text-secondary" style="white-space: pre-wrap; font-size: 0.9rem;"></div>
+                                    <div id="ai-sources-list" class="d-flex align-items-center gap-1 flex-wrap mt-2"></div>
+                                </div>
+
                                 <div class="mt-4 pt-3 d-flex gap-2" style="border-top: 1px solid var(--border-subtle);">
                                     <button class="btn-secondary-dark btn-sm px-3" id="create-another-ticket">
                                         <i class="fas fa-plus me-1"></i> Submit Another Ticket
@@ -486,10 +496,69 @@
                                             <p class="ticket-text-preview mb-2" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
                                             <div class="text-muted small"><i class="far fa-clock me-1"></i> Created: {{ ticket.created_at }}</div>
                                             
+                                            <!-- AI Resolution & Grounded Sources -->
+                                            {% if ticket.resolution %}
+                                            <div class="mt-3 p-3 rounded" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2);">
+                                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                                    <span class="small fw-bold gradient-text"><i class="fas fa-sparkles me-1"></i> AI Proposed Solution:</span>
+                                                    <span class="badge bg-dark border text-muted" style="font-size: 0.7rem;">Grounding: {{ ticket.resolution.grounding_status }}</span>
+                                                </div>
+                                                <p class="small text-secondary mb-2" style="white-space: pre-wrap;">{{ ticket.resolution.proposed_solution }}</p>
+                                                {% if ticket.resolution.sources %}
+                                                <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                    <span class="small text-muted" style="font-size: 0.7rem;">Sources:</span>
+                                                    {% for src in ticket.resolution.sources %}
+                                                    <span class="badge bg-dark border text-info" style="font-size: 0.7rem;"><i class="fas fa-file-alt me-1"></i> {{ src.doc_title or 'Doc' }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+
+                                            <!-- Customer Feedback Section -->
+                                            {% if ticket.feedback %}
+                                            <div class="mt-2 p-2 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
+                                                <span class="small text-success fw-bold"><i class="fas fa-star text-warning me-1"></i> You rated this solution: {{ ticket.feedback.feedback_rating }}/5 (Resolved: {{ 'Yes' if ticket.feedback.was_resolved else 'No' }})</span>
+                                                {% if ticket.feedback.feedback_comment %}
+                                                <div class="small text-muted mt-1 font-italic">"{{ ticket.feedback.feedback_comment }}"</div>
+                                                {% endif %}
+                                            </div>
+                                            {% else %}
+                                            <!-- Unsubmitted Feedback Form -->
+                                            <div class="mt-3 p-3 rounded" style="background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--border-subtle);" id="fb-box-{{ ticket.id }}">
+                                                <div class="small fw-semibold mb-2"><i class="fas fa-comment-dots me-1 text-primary"></i> Did this answer resolve your issue?</div>
+                                                <div class="row g-2 align-items-center">
+                                                    <div class="col-auto">
+                                                        <select class="form-select form-select-dark form-select-sm" id="fb-resolved-{{ ticket.id }}">
+                                                            <option value="true">Yes, Issue Resolved</option>
+                                                            <option value="false">No, Need Further Help</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-auto">
+                                                        <select class="form-select form-select-dark form-select-sm" id="fb-rating-{{ ticket.id }}">
+                                                            <option value="5">⭐⭐⭐⭐⭐ (5/5)</option>
+                                                            <option value="4">⭐⭐⭐⭐ (4/5)</option>
+                                                            <option value="3">⭐⭐⭐ (3/5)</option>
+                                                            <option value="2">⭐⭐ (2/5)</option>
+                                                            <option value="1">⭐ (1/5)</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col">
+                                                        <input type="text" class="form-control form-control-dark form-control-sm" id="fb-comment-{{ ticket.id }}" placeholder="Optional feedback comment...">
+                                                    </div>
+                                                    <div class="col-auto">
+                                                        <button class="btn btn-outline-success btn-sm" onclick="sendCustomerFeedback('{{ ticket.id }}')">
+                                                            <i class="fas fa-paper-plane me-1"></i> Submit Feedback
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+
                                             {% if ticket.resolution_notes %}
                                             <div class="mt-3 p-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
                                                 <div class="small fw-bold text-success mb-1">
-                                                    <i class="fas fa-check me-1"></i> Support Resolution:
+                                                    <i class="fas fa-check me-1"></i> Admin Resolution:
                                                 </div>
                                                 <p class="mb-1 text-secondary small">{{ ticket.resolution_notes }}</p>
                                                 <div class="text-muted" style="font-size: 0.72rem;">Resolved on: {{ ticket.resolved_at }}</div>
@@ -632,7 +701,8 @@
                         document.getElementById('results-section').classList.remove('d-none');
                         
                         const isOos = Boolean(data.is_out_of_scope || data.category === 'Out of Scope');
-                        const needsReview = Boolean(data.needs_human_review || (data.confidence < 60.0) || isOos);
+                        const isLowConfidence = Number(data.confidence) < 60.0;
+                        const needsReview = Boolean(data.needs_human_review || isLowConfidence || isOos);
                         
                         // Populate results
                         const resultCatEl = document.getElementById('result-category');
@@ -661,14 +731,23 @@
                                     <i class="fas fa-shield-alt fs-5"></i>
                                     <div><strong>Out of Scope:</strong> ${data.review_reason || 'This message is outside customer service scope'}. A human agent will review your request.</div>
                                 </div>`;
-                        } else if (needsReview || data.confidence < 60.0) {
-                            statusBadgeEl.innerHTML = '<span class="badge bg-warning text-dark px-3 py-2"><i class="fas fa-user-clock me-1"></i> Needs Human Review</span>';
+                        } else if (isLowConfidence) {
+                            statusBadgeEl.innerHTML = '<span class="badge bg-warning text-dark px-3 py-2"><i class="fas fa-user-clock me-1"></i> Low Confidence (Review Needed)</span>';
                             confContainer.className = 'fw-bold text-warning';
                             fillBar.style.background = '#f59e0b';
                             alertEl.innerHTML = `
                                 <div class="alert alert-warning d-flex align-items-center gap-2 mb-0 py-2">
                                     <i class="fas fa-exclamation-triangle fs-5"></i>
-                                    <div><strong>Human Review Needed:</strong> Confidence score (${data.confidence}%) is below 60%. Flagged for human agent verification.</div>
+                                    <div><strong>Human Review Needed:</strong> Confidence score (${data.confidence}%) is below 60%. Flagged for category verification.</div>
+                                </div>`;
+                        } else if (needsReview) {
+                            statusBadgeEl.innerHTML = '<span class="badge bg-warning text-dark px-3 py-2"><i class="fas fa-user-shield me-1"></i> Specialist Review Needed</span>';
+                            confContainer.className = 'fw-bold text-success';
+                            fillBar.style.background = 'var(--primary-gradient)';
+                            alertEl.innerHTML = `
+                                <div class="alert alert-warning d-flex align-items-center gap-2 mb-0 py-2">
+                                    <i class="fas fa-user-shield fs-5"></i>
+                                    <div><strong>Specialist Review Needed:</strong> Category identified with high confidence (${data.confidence}%). However, ticket resolution requires agent verification: ${data.review_reason || 'AI troubleshooting steps are ungrounded or require human authorization.'}</div>
                                 </div>`;
                         } else {
                             statusBadgeEl.innerHTML = '<span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 px-3 py-2"><i class="fas fa-check-circle me-1"></i> In Scope & Routed</span>';
@@ -677,6 +756,32 @@
                             alertEl.innerHTML = '';
                         }
                         
+                        // Render AI Proposed Resolution if available
+                        const aiBox = document.getElementById('ai-solution-box');
+                        const aiText = document.getElementById('ai-solution-text');
+                        const aiBadge = document.getElementById('ai-grounding-badge');
+                        const aiSources = document.getElementById('ai-sources-list');
+
+                        if (data.resolution && data.resolution.proposed_solution) {
+                            aiBox.classList.remove('d-none');
+                            let steps = data.resolution.proposed_solution;
+                            if (Array.isArray(steps)) {
+                                aiText.textContent = steps.map((s, idx) => `${idx + 1}. ${s}`).join('\n');
+                            } else {
+                                aiText.textContent = steps;
+                            }
+                            aiBadge.textContent = 'Grounding: ' + (data.resolution.grounding_status || 'ungrounded');
+
+                            if (data.sources && data.sources.length > 0) {
+                                aiSources.innerHTML = '<span class="small text-muted" style="font-size:0.75rem;">Supporting Articles:</span> ' +
+                                    data.sources.map(s => `<span class="badge bg-dark border text-info small"><i class="fas fa-file-alt me-1"></i> ${s.title || 'Doc'}</span>`).join(' ');
+                            } else {
+                                aiSources.innerHTML = '';
+                            }
+                        } else {
+                            aiBox.classList.add('d-none');
+                        }
+
                         // Update email status
                         const emailStatus = document.getElementById('email-status');
                         if (data.email_sent) {
@@ -871,6 +976,39 @@
                 });
             }
         });
+
+        function sendCustomerFeedback(ticketId) {
+            const resolvedSel = document.getElementById('fb-resolved-' + ticketId);
+            const ratingSel = document.getElementById('fb-rating-' + ticketId);
+            const commentInput = document.getElementById('fb-comment-' + ticketId);
+
+            const wasResolved = resolvedSel ? resolvedSel.value === 'true' : true;
+            const rating = ratingSel ? parseInt(ratingSel.value) : 5;
+            const comment = commentInput ? commentInput.value.trim() : '';
+
+            fetch('/api/ticket/' + ticketId + '/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    was_resolved: wasResolved,
+                    rating: rating,
+                    comment: comment
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Could not record feedback');
+            });
+        }
     </script>
 </body>
 </html>

@@ -1,0 +1,22 @@
+{
+    "timestamp": "2026-10-30T15:29:48Z",
+    "sample_count": 10,
+    "classification": {
+        "model_architecture": "Calibrated LinearSVC + Word/Char TF-IDF",
+        "accuracy": 0.9,
+        "macro_f1": 0.9333,
+        "mean_inference_latency_ms": 14.88
+    },
+    "retrieval": {
+        "vector_engine": "NeonDB PostgreSQL + pgvector (v0.8.6 HNSW Cosine Index)",
+        "embedding_dimension": 768,
+        "recall_at_5": 0.7,
+        "mean_reciprocal_rank_mrr": 0.4283,
+        "mean_retrieval_latency_ms": 2827.46
+    },
+    "system": {
+        "database_query_latency_ms": 319.86,
+        "rag_pipeline_latency_ms": 3162.2,
+        "safety_escalation_enforcement": "Active (Human review triggers for legal, low confidence, prompt injection)"
+    }
+}

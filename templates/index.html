@@ -261,11 +261,17 @@
                             <i class="fas fa-ban fs-5"></i>
                             <div><strong>Out of Scope:</strong> ${data.review_reason || 'Message does not match support scope'}. Flagged for human agent review.</div>
                         </div>`;
-                } else if (needsReview || data.confidence < 60.0) {
+                } else if (data.confidence < 60.0) {
                     triageBanner = `
                         <div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
                             <i class="fas fa-exclamation-triangle fs-5"></i>
-                            <div><strong>Human Review Needed:</strong> Confidence score (${data.confidence}%) is below 60%. Flagged for manual agent review.</div>
+                            <div><strong>Human Review Needed:</strong> Confidence score (${data.confidence}%) is below 60%. Flagged for category verification.</div>
+                        </div>`;
+                } else if (needsReview) {
+                    triageBanner = `
+                        <div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
+                            <i class="fas fa-user-shield fs-5"></i>
+                            <div><strong>Specialist Review Needed:</strong> Category identified with high confidence (${data.confidence}%). However, resolution requires agent verification: ${data.review_reason || 'AI troubleshooting requires human validation.'}</div>
                         </div>`;
                 }
 

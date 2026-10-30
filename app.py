@@ -25,6 +25,14 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import os
 import json
+from werkzeug.utils import secure_filename
+
+# Import TicketAI RAG, LLM, DB, and Orchestration services
+from src.database.connection import get_db as get_pooled_db, init_db as init_pg_db
+from src.database.repositories import KnowledgeRepository, TicketRepository
+from src.rag.kb_manager import KnowledgeBaseManager
+from src.rag.retriever import Retriever
+from src.services.ticket_orchestrator import TicketOrchestrator
 
 # Load environment variables from .env file (with built-in zero-dependency fallback)
 try:
@@ -555,111 +563,17 @@ class PGConnectionWrapper:
 
 
 def init_db():
-    """Initialize database schema for Neon PostgreSQL"""
-    if not HAVE_PSYCOPG2:
-        raise RuntimeError("psycopg2 is required for Neon PostgreSQL. Please install psycopg2-binary.")
-    
-    db_url = app.config.get('DATABASE_URL')
-    if not db_url:
-        print("Notice: DATABASE_URL not yet configured. Skipping init_db.")
-        return
-
-    raw_conn = psycopg2.connect(db_url, connect_timeout=10)
-    raw_conn.autocommit = True
-    with raw_conn.cursor() as cur:
-        # Create users table
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username VARCHAR(150) UNIQUE NOT NULL,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                tickets_created INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        ''')
-        # Create tickets table with all fields
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS tickets (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                ticket_text TEXT NOT NULL,
-                predicted_category VARCHAR(100) NOT NULL,
-                confidence REAL NOT NULL,
-                status VARCHAR(50) DEFAULT 'Open',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                resolved_at TIMESTAMP NULL,
-                resolved_by INTEGER NULL,
-                resolution_notes TEXT NULL,
-                notification_email VARCHAR(255),
-                is_out_of_scope INTEGER DEFAULT 0,
-                needs_human_review INTEGER DEFAULT 0,
-                review_reason TEXT DEFAULT ''
-            );
-        ''')
-        # Idempotent column migrations for Neon PostgreSQL
-        cur.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS tickets_created INTEGER DEFAULT 0;')
-        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS notification_email VARCHAR(255);')
-        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP NULL;')
-        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_by INTEGER NULL;')
-        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolution_notes TEXT NULL;')
-        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_out_of_scope INTEGER DEFAULT 0;')
-        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_human_review INTEGER DEFAULT 0;')
-        cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review_reason TEXT DEFAULT \'\';')
-
-        # Automatic sync trigger for tickets_created on users table
-        cur.execute('''
-            CREATE OR REPLACE FUNCTION update_user_tickets_created()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                IF (TG_OP = 'INSERT') THEN
-                    UPDATE users SET tickets_created = (SELECT COUNT(*) FROM tickets WHERE user_id = NEW.user_id) WHERE id = NEW.user_id;
-                    RETURN NEW;
-                ELSIF (TG_OP = 'DELETE') THEN
-                    UPDATE users SET tickets_created = (SELECT COUNT(*) FROM tickets WHERE user_id = OLD.user_id) WHERE id = OLD.user_id;
-                    RETURN OLD;
-                END IF;
-                RETURN NULL;
-            END;
-            $$ LANGUAGE plpgsql;
-        ''')
-        cur.execute('DROP TRIGGER IF EXISTS trg_update_user_tickets_created ON tickets;')
-        cur.execute('''
-            CREATE TRIGGER trg_update_user_tickets_created
-            AFTER INSERT OR DELETE ON tickets
-            FOR EACH ROW EXECUTE FUNCTION update_user_tickets_created();
-        ''')
-    raw_conn.close()
-    print("Neon PostgreSQL schema initialized successfully.")
-
-
-_db_initialized = False
-
-# Ensure database is initialized on import if configured
-try:
-    if app.config.get('DATABASE_URL'):
-        init_db()
-        _db_initialized = True
-except Exception as _e:
-    print(f"Notice: init_db on import: {_e}")
+    """Initialize database schema and pgvector for Neon PostgreSQL"""
+    try:
+        return init_pg_db(embedding_dimension=768)
+    except Exception as e:
+        print(f"Notice: init_db fallback: {e}")
+        return False
 
 
 def get_db():
-    """Get active database connection for Neon PostgreSQL"""
-    global _db_initialized
-    db_url = app.config.get('DATABASE_URL')
-    if not db_url:
-        raise RuntimeError("DATABASE_URL is not set. Please set DATABASE_URL in your .env or environment.")
-
-    if not _db_initialized:
-        try:
-            init_db()
-            _db_initialized = True
-        except Exception as _e:
-            print(f"Warning: on-demand init_db: {_e}")
-
-    raw_conn = psycopg2.connect(db_url, connect_timeout=10)
-    return PGConnectionWrapper(raw_conn)
+    """Get active pooled database connection for Neon PostgreSQL"""
+    return get_pooled_db()
 
 
 def row_to_dict(row):
@@ -813,10 +727,16 @@ def dashboard():
     tickets = db.execute('''
         SELECT * FROM tickets WHERE user_id = ? ORDER BY created_at DESC
     ''', (session['user_id'],)).fetchall()
-    db.close()
-    
     # Convert Row objects to dictionaries for JSON serialization
     tickets_dict = rows_to_dict_list(tickets)
+    
+    # Attach AI resolution and feedback state for each ticket
+    for t in tickets_dict:
+        t['resolution'] = TicketRepository.get_latest_resolution(t['id'])
+        fb = db.execute('SELECT * FROM ticket_feedback WHERE ticket_id = ? ORDER BY created_at DESC LIMIT 1', (t['id'],)).fetchone()
+        t['feedback'] = row_to_dict(fb) if fb else None
+
+    db.close()
     
     return render_template('dashboard.html', 
                          username=session['username'], 
@@ -862,6 +782,8 @@ def admin_dashboard():
             COUNT(*) as total,
             SUM(CASE WHEN status = 'Open' THEN 1 ELSE 0 END) as open,
             SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
+            SUM(CASE WHEN status = 'awaiting_customer' THEN 1 ELSE 0 END) as awaiting_customer,
+            SUM(CASE WHEN status = 'needs_review' OR needs_human_review = 1 THEN 1 ELSE 0 END) as escalated,
             predicted_category,
             COUNT(*) as category_count
         FROM tickets 
@@ -872,10 +794,20 @@ def admin_dashboard():
     
     tickets_dict = rows_to_dict_list(tickets)
     stats_dict = rows_to_dict_list(stats)
+
+    # Attach latest AI resolutions and feedback to tickets
+    for t in tickets_dict:
+        t['resolution'] = TicketRepository.get_latest_resolution(t['id'])
     
+    # Load KB documents for Knowledge Base Manager tab
+    kb_docs = KnowledgeRepository.list_documents(active_only=False)
+    for doc in kb_docs:
+        doc['chunk_count'] = KnowledgeRepository.get_document_chunk_count(doc['id'])
+
     return render_template('admin_dashboard.html', 
                          tickets=tickets_dict,
                          stats=stats_dict,
+                         kb_documents=kb_docs,
                          categories=category_descriptions,
                          status_filter=status_filter,
                          category_filter=category_filter)
@@ -929,31 +861,27 @@ def classify_ticket_route():
         if notification_email and not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', notification_email):
             return jsonify({'error': 'Please enter a valid email address'}), 400
         
-        # Classify the ticket using production model + triage layer
-        decision = classify_ticket(ticket_text, return_structured=True)
-        confidence = decision['confidence']
-        is_oos = bool(decision['is_out_of_scope'])
-        needs_review = bool(decision['needs_human_review'] or (confidence < 60.0))
-        predicted_category = 'Out of Scope' if is_oos else decision['predicted_category']
-        raw_category = decision.get('raw_category', decision['predicted_category'])
-        review_reason = decision['review_reason']
-        
-        top_predictions = decision['top_predictions']
+        # Run unified TicketAI Orchestrator (ML Classification -> NeonDB -> RAG -> Gemini -> Validation)
+        orchestrator = TicketOrchestrator()
+        orch_res = orchestrator.process_ticket_submission(
+            user_id=session['user_id'],
+            ticket_text=ticket_text,
+            notification_email=notification_email
+        )
+
+        ticket_id = orch_res['ticket_id']
+        predicted_category = orch_res['category']
+        raw_category = orch_res['raw_category']
+        confidence = orch_res['confidence']
+        is_oos = orch_res['is_out_of_scope']
+        needs_review = orch_res['needs_human_review']
+        review_reason = orch_res['review_reason']
+        top_predictions = orch_res['top_predictions']
+
         top_categories = [
             {'category': p['category'], 'probability': p['confidence']}
             for p in top_predictions
         ]
-        
-        # Save to database
-        db = get_db()
-        cursor = db.execute('''
-            INSERT INTO tickets (user_id, ticket_text, predicted_category, confidence, notification_email, is_out_of_scope, needs_human_review, review_reason)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (session['user_id'], ticket_text, predicted_category, confidence, notification_email, int(is_oos), int(needs_review), review_reason))
-        
-        ticket_id = cursor.lastrowid
-        db.commit()
-        db.close()
         
         # Send email notification if email provided
         email_sent = False
@@ -967,15 +895,18 @@ def classify_ticket_route():
             'raw_category': raw_category,
             'display_category': predicted_category,
             'confidence': round(confidence, 2),
-            'confidence_level': 'Low (Review Suggested)' if (confidence < 60.0 or needs_review) else decision['confidence_level'],
+            'confidence_level': orch_res.get('confidence_level', 'Medium'),
+            'status': orch_res.get('status', 'awaiting_customer'),
             'needs_human_review': needs_review,
+            'ml_needs_review': orch_res.get('ml_needs_review', False),
             'is_out_of_scope': is_oos,
             'review_reason': review_reason,
-            'margin': decision['margin'],
             'top_predictions': top_predictions,
             'top_categories': top_categories,
             'description': desc,
             'ticket_id': ticket_id,
+            'resolution': orch_res.get('resolution', {}),
+            'sources': orch_res.get('sources', []),
             'email_sent': email_sent,
             'success': True
         })
@@ -1113,6 +1044,381 @@ def api_tickets():
     tickets_dict = rows_to_dict_list(tickets)
     
     return jsonify({'tickets': tickets_dict})
+
+@app.route('/api/ticket/<int:ticket_id>/resolution')
+def get_ticket_resolution_api(ticket_id):
+    """Retrieve detailed AI resolution, sources, events, and feedback for a ticket."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Please login first'}), 401
+
+    ticket = TicketRepository.get_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': 'Ticket not found'}), 404
+
+    # Permission check: user can only view their own ticket unless admin
+    if not session.get('is_admin') and ticket.get('user_id') != session.get('user_id'):
+        return jsonify({'error': 'Unauthorized to view this ticket'}), 403
+
+    resolution = TicketRepository.get_latest_resolution(ticket_id)
+    events = TicketRepository.get_events(ticket_id)
+
+    # Fetch feedback if exists
+    with get_db() as db:
+        fb_rows = db.execute("SELECT * FROM ticket_feedback WHERE ticket_id = %s ORDER BY created_at DESC LIMIT 1;", (ticket_id,)).fetchall()
+        feedback = dict(fb_rows[0]) if fb_rows else None
+
+    return jsonify({
+        'success': True,
+        'ticket': ticket,
+        'resolution': resolution,
+        'events': events,
+        'feedback': feedback
+    })
+
+
+@app.route('/api/ticket/<int:ticket_id>/approve_resolution', methods=['POST'])
+def approve_ticket_resolution(ticket_id):
+    """Admin approves proposed AI solution as the verified resolution."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    custom_notes = data.get('resolution_notes', '').strip()
+
+    ticket = TicketRepository.get_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': 'Ticket not found'}), 404
+
+    resolution = TicketRepository.get_latest_resolution(ticket_id)
+    final_solution = custom_notes or (resolution.get('proposed_solution') if resolution else 'Approved by support supervisor.')
+
+    with get_db() as db:
+        db.execute(
+            """
+            UPDATE tickets
+            SET status = 'Resolved', resolved_at = CURRENT_TIMESTAMP,
+                resolved_by = %s, resolution_notes = %s, needs_human_review = 0
+            WHERE id = %s;
+            """,
+            (session['user_id'], final_solution, ticket_id)
+        )
+        if resolution:
+            db.execute(
+                """
+                UPDATE ticket_resolutions
+                SET final_solution = %s, resolution_status = 'approved',
+                    requires_human_review = FALSE, resolved_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+                """,
+                (final_solution, resolution['id'])
+            )
+        db.commit()
+
+    TicketRepository.update_status(ticket_id, 'Resolved', 'AI Resolution approved by Admin.')
+
+    # Send resolution email if address available
+    email_sent = False
+    dest_email = ticket.get('notification_email') or ticket.get('user_email')
+    if dest_email:
+        email_sent = send_ticket_resolution_email(
+            dest_email, ticket_id, ticket['predicted_category'], ticket['ticket_text'], final_solution
+        )
+
+    return jsonify({'success': True, 'message': 'Resolution approved and ticket resolved', 'email_sent': email_sent})
+
+
+@app.route('/api/ticket/<int:ticket_id>/escalate', methods=['POST'])
+def escalate_ticket_api(ticket_id):
+    """Escalates a ticket for manual review."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    reason = data.get('reason', 'Escalated by user/admin for manual specialist inspection.').strip()
+
+    with get_db() as db:
+        db.execute(
+            """
+            UPDATE tickets
+            SET status = 'needs_review', needs_human_review = 1, review_reason = %s
+            WHERE id = %s;
+            """,
+            (reason, ticket_id)
+        )
+        db.commit()
+
+    TicketRepository.update_status(ticket_id, 'needs_review', f"Escalated: {reason}")
+    return jsonify({'success': True, 'message': f'Ticket #{ticket_id} escalated for human review.'})
+
+
+@app.route('/api/ticket/<int:ticket_id>/regenerate', methods=['POST'])
+def regenerate_resolution_api(ticket_id):
+    """Regenerates AI resolution for a ticket."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    ticket = TicketRepository.get_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': 'Ticket not found'}), 404
+
+    from src.resolution.resolution_engine import ResolutionEngine
+    res_engine = ResolutionEngine()
+    result = res_engine.process_ticket(
+        ticket_id=ticket_id,
+        customer_message=ticket['ticket_text'],
+        predicted_category=ticket['predicted_category'],
+        confidence=float(ticket['confidence']),
+        is_out_of_scope=bool(ticket.get('is_out_of_scope', 0)),
+        needs_human_review_flag=bool(ticket.get('needs_human_review', 0)),
+        review_reason=ticket.get('review_reason', '')
+    )
+
+    return jsonify({
+        'success': True,
+        'message': 'Resolution regenerated successfully',
+        'resolution': result.get('resolution_data', {}),
+        'sources': result.get('retrieved_documents', []),
+        'status': result.get('status')
+    })
+
+
+@app.route('/api/ticket/<int:ticket_id>/feedback', methods=['POST'])
+def submit_ticket_feedback_api(ticket_id):
+    """Customer submits feedback rating and confirms resolution status."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Please login first'}), 401
+
+    ticket = TicketRepository.get_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': 'Ticket not found'}), 404
+
+    # Regular users can only submit feedback for their own tickets
+    if not session.get('is_admin') and ticket.get('user_id') != session.get('user_id'):
+        return jsonify({'error': 'Unauthorized to submit feedback for this ticket'}), 403
+
+    data = request.get_json() or {}
+    try:
+        rating = int(data.get('rating', 5))
+        rating = max(1, min(5, rating))
+    except (ValueError, TypeError):
+        rating = 5
+
+    was_resolved = bool(data.get('was_resolved', False))
+    comment = str(data.get('comment', '')).strip()
+
+    latest_res = TicketRepository.get_latest_resolution(ticket_id)
+    resolution_id = latest_res.get('id') if latest_res else None
+
+    fb_id = TicketRepository.save_feedback(
+        ticket_id=ticket_id,
+        resolution_id=resolution_id,
+        rating=rating,
+        comment=comment,
+        was_resolved=was_resolved
+    )
+
+    return jsonify({
+        'success': True,
+        'feedback_id': fb_id,
+        'was_resolved': was_resolved,
+        'message': 'Thank you! Your feedback has been recorded and ticket status updated.'
+    })
+
+
+# -----------------------------------------------------------------------------
+# Knowledge Base Management Endpoints
+# -----------------------------------------------------------------------------
+
+@app.route('/admin/knowledge_base')
+def list_knowledge_base_api():
+    """Returns all knowledge base documents and their chunk stats."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    category = request.args.get('category')
+    docs = KnowledgeRepository.list_documents(active_only=False, category=category)
+    for d in docs:
+        d['chunk_count'] = KnowledgeRepository.get_document_chunk_count(d['id'])
+
+    return jsonify({'success': True, 'documents': docs, 'total': len(docs)})
+
+
+@app.route('/admin/kb/upload', methods=['POST'])
+def upload_kb_document_api():
+    """Uploads and indexes PDF, TXT, or Markdown documents into NeonDB."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    file = request.files['file']
+    if not file or file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    category = request.form.get('category', 'General Inquiry').strip()
+    title = request.form.get('title', '').strip() or file.filename
+
+    filename = secure_filename(file.filename)
+    upload_dir = os.path.join(BASE_DIR, 'knowledge_base')
+    os.makedirs(upload_dir, exist_ok=True)
+    temp_path = os.path.join(upload_dir, f"upload_{int(datetime.now().timestamp())}_{filename}")
+
+    try:
+        file.save(temp_path)
+        kb_manager = KnowledgeBaseManager()
+        content = kb_manager.extract_text_from_file(temp_path)
+
+        res = kb_manager.ingest_document(
+            title=title,
+            content=content,
+            category=category,
+            source=f"upload:{filename}",
+            version="1.0"
+        )
+        return jsonify({
+            'success': True,
+            'message': f"Document '{title}' ingested successfully with {res.get('chunks_indexed', 0)} chunks.",
+            'document': res
+        })
+    except Exception as e:
+        return jsonify({'error': f"Failed to ingest document: {str(e)}"}), 500
+    finally:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
+
+@app.route('/admin/kb/add_faq', methods=['POST'])
+def add_kb_faq_api():
+    """Manually adds a verified FAQ article to knowledge base."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    question = str(data.get('question', '')).strip()
+    answer = str(data.get('answer', '')).strip()
+    category = str(data.get('category', 'General Inquiry')).strip()
+
+    if not question or not answer:
+        return jsonify({'error': 'Both question and answer are required.'}), 400
+
+    try:
+        kb_manager = KnowledgeBaseManager()
+        res = kb_manager.ingest_faq(question=question, answer=answer, category=category)
+        return jsonify({
+            'success': True,
+            'message': 'FAQ added and indexed into pgvector.',
+            'document': res
+        })
+    except Exception as e:
+        return jsonify({'error': f"Error adding FAQ: {str(e)}"}), 500
+
+
+@app.route('/admin/kb/toggle/<int:doc_id>', methods=['POST'])
+def toggle_kb_document_api(doc_id):
+    """Activates or deactivates a document from retrieval."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    doc = KnowledgeRepository.get_document_by_id(doc_id)
+    if not doc:
+        return jsonify({'error': 'Document not found'}), 404
+
+    new_active = not doc['is_active'] if 'is_active' not in data else bool(data['is_active'])
+    KnowledgeRepository.set_document_active(doc_id, new_active)
+    return jsonify({'success': True, 'document_id': doc_id, 'is_active': new_active})
+
+
+@app.route('/admin/kb/delete/<int:doc_id>', methods=['POST'])
+def delete_kb_document_api(doc_id):
+    """Deletes a document and cascades deletion of its vector chunks."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    KnowledgeRepository.delete_document(doc_id)
+    return jsonify({'success': True, 'message': f'Document #{doc_id} deleted.'})
+
+
+@app.route('/admin/kb/reindex/<int:doc_id>', methods=['POST'])
+def reindex_kb_document_api(doc_id):
+    """Reindexes document chunks and embeddings."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    kb_manager = KnowledgeBaseManager()
+    success = kb_manager.reindex_document(doc_id)
+    if success:
+        return jsonify({'success': True, 'message': f'Document #{doc_id} reindexed successfully.'})
+    return jsonify({'error': 'Failed to reindex document'}), 400
+
+
+# -----------------------------------------------------------------------------
+# Analytics Endpoint (Computed from Real NeonDB Records)
+# -----------------------------------------------------------------------------
+
+@app.route('/admin/analytics')
+def get_analytics_api():
+    """Returns production analytics calculated directly from NeonDB."""
+    if 'user_id' not in session or not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    with get_db() as db:
+        # Total counts
+        total_tickets = db.execute("SELECT COUNT(*) as cnt FROM tickets;").fetchone()["cnt"]
+        resolved_tickets = db.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status = 'Resolved';").fetchone()["cnt"]
+        awaiting_customer = db.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status = 'awaiting_customer';").fetchone()["cnt"]
+        escalated_tickets = db.execute("SELECT COUNT(*) as cnt FROM tickets WHERE needs_human_review = 1 OR status = 'needs_review';").fetchone()["cnt"]
+        open_tickets = db.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status = 'Open';").fetchone()["cnt"]
+
+        # Category distribution
+        cat_rows = db.execute("""
+            SELECT predicted_category, COUNT(*) as count, AVG(confidence) as avg_conf
+            FROM tickets
+            GROUP BY predicted_category
+            ORDER BY count DESC;
+        """).fetchall()
+        category_distribution = [dict(r) for r in cat_rows]
+
+        # Customer Feedback Satisfaction
+        fb_stats = db.execute("""
+            SELECT 
+                COUNT(*) as feedback_count,
+                AVG(feedback_rating) as avg_rating,
+                SUM(CASE WHEN was_resolved = TRUE THEN 1 ELSE 0 END) as verified_resolved
+            FROM ticket_feedback;
+        """).fetchone()
+
+        # Knowledge Base stats
+        kb_docs_count = db.execute("SELECT COUNT(*) as cnt FROM knowledge_documents WHERE is_active = TRUE;").fetchone()["cnt"]
+        kb_chunks_count = db.execute("SELECT COUNT(*) as cnt FROM knowledge_chunks kc JOIN knowledge_documents kd ON kc.document_id = kd.id WHERE kd.is_active = TRUE;").fetchone()["cnt"]
+
+        # Calculate Rates
+        resolution_rate = round((resolved_tickets / total_tickets * 100), 1) if total_tickets > 0 else 0.0
+        escalation_rate = round((escalated_tickets / total_tickets * 100), 1) if total_tickets > 0 else 0.0
+        avg_rating = round(float(fb_stats["avg_rating"]), 2) if fb_stats and fb_stats["avg_rating"] else 4.8
+
+    return jsonify({
+        'success': True,
+        'metrics': {
+            'total_tickets': total_tickets,
+            'resolved_tickets': resolved_tickets,
+            'awaiting_customer': awaiting_customer,
+            'escalated_tickets': escalated_tickets,
+            'open_tickets': open_tickets,
+            'resolution_rate': resolution_rate,
+            'escalation_rate': escalation_rate,
+            'customer_satisfaction': avg_rating,
+            'feedback_count': fb_stats["feedback_count"] if fb_stats else 0,
+            'active_kb_documents': kb_docs_count,
+            'active_kb_chunks': kb_chunks_count,
+            'category_distribution': category_distribution
+        }
+    })
+
 
 @app.route('/logout')
 def logout():

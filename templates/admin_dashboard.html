@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard — TicketAI</title>
+    <title>Admin Dashboard — TicketAI Automation Platform</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
@@ -14,7 +14,7 @@
             border: 1px solid var(--border-card);
             backdrop-filter: var(--glass-blur);
             border-radius: var(--radius-md);
-            padding: 24px;
+            padding: 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -59,6 +59,53 @@
         .modal-content-dark .modal-footer {
             border-top: 1px solid var(--border-subtle);
         }
+        .source-pill {
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            color: #818cf8;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .nav-tabs-custom {
+            border-bottom: 1px solid var(--border-subtle);
+            gap: 8px;
+        }
+        .nav-tabs-custom .nav-link {
+            color: var(--text-secondary);
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px 8px 0 0;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .nav-tabs-custom .nav-link:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.03);
+        }
+        .nav-tabs-custom .nav-link.active {
+            color: #ffffff !important;
+            background: rgba(99, 102, 241, 0.15) !important;
+            border-bottom: 2px solid var(--primary);
+        }
+        .table-dark-custom {
+            color: var(--text-primary);
+            background: transparent;
+        }
+        .table-dark-custom th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-color: var(--border-subtle);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        .table-dark-custom td {
+            border-color: var(--border-subtle);
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -71,7 +118,7 @@
                 </div>
                 <div class="d-flex flex-column">
                     <span class="fw-bold fs-5 brand-title lh-1">Ticket<span class="gradient-text">AI</span></span>
-                    <span class="small text-muted text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.08em;">Admin Console</span>
+                    <span class="small text-muted text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.08em;">Automation Console</span>
                 </div>
             </a>
             <div class="navbar-nav ms-auto d-flex flex-row align-items-center gap-3">
@@ -79,7 +126,10 @@
                     <i class="fas fa-sun"></i>
                 </button>
                 <span class="badge rounded-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
-                    <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> Live System
+                    <i class="fas fa-database me-1"></i> NeonDB + pgvector
+                </span>
+                <span class="badge rounded-pill" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
+                    <i class="fas fa-brain me-1"></i> Gemini RAG Engine
                 </span>
                 <a class="btn-secondary-dark btn-sm py-1 px-3" href="{{ url_for('logout') }}">
                     <i class="fas fa-sign-out-alt me-1"></i> Logout
@@ -89,194 +139,474 @@
     </nav>
 
     <div class="container py-4">
-        <!-- Top Stats Row -->
-        <div class="row g-3 mb-4">
-            <div class="col-md-3 col-6">
-                <div class="admin-stat-card">
-                    <div>
-                        <span class="text-secondary small fw-semibold text-uppercase">Total Tickets</span>
-                        <h2 class="display-6 fw-bold mb-0 mt-1">{{ stats|sum(attribute='total') or 0 }}</h2>
-                    </div>
-                    <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">
-                        <i class="fas fa-layer-group"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="admin-stat-card">
-                    <div>
-                        <span class="text-secondary small fw-semibold text-uppercase">Open Queries</span>
-                        <h2 class="display-6 fw-bold mb-0 text-warning mt-1">{{ stats|sum(attribute='open') or 0 }}</h2>
-                    </div>
-                    <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="admin-stat-card">
-                    <div>
-                        <span class="text-secondary small fw-semibold text-uppercase">Resolved</span>
-                        <h2 class="display-6 fw-bold mb-0 text-success mt-1">{{ stats|sum(attribute='resolved') or 0 }}</h2>
-                    </div>
-                    <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">
-                        <i class="fas fa-check-double"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="admin-stat-card">
-                    <div>
-                        <span class="text-secondary small fw-semibold text-uppercase">Categories</span>
-                        <h2 class="display-6 fw-bold mb-0 gradient-text-cyan mt-1">{{ stats|length or 5 }}</h2>
-                    </div>
-                    <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
-                        <i class="fas fa-tags"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Dashboard Navigation Tabs -->
+        <ul class="nav nav-tabs nav-tabs-custom mb-4" id="adminTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tickets-tab" data-bs-toggle="tab" data-bs-target="#tickets-pane" type="button" role="tab">
+                    <i class="fas fa-inbox me-2"></i>Tickets & AI Resolution Queue
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="kb-tab" data-bs-toggle="tab" data-bs-target="#kb-pane" type="button" role="tab">
+                    <i class="fas fa-book-open me-2"></i>Knowledge Base Management ({{ kb_documents|length }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-pane" type="button" role="tab" onclick="loadLiveAnalytics()">
+                    <i class="fas fa-chart-line me-2"></i>System Analytics & Performance
+                </button>
+            </li>
+        </ul>
 
-        <!-- Filter Controls -->
-        <div class="glass-card p-4 mb-4">
-            <form method="GET" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label text-secondary small fw-semibold">Filter by Status</label>
-                    <select name="status" class="form-select form-select-dark">
-                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
-                        <option value="Open" {% if status_filter == 'Open' %}selected{% endif %}>Open</option>
-                        <option value="Resolved" {% if status_filter == 'Resolved' %}selected{% endif %}>Resolved</option>
-                    </select>
-                </div>
-                <div class="col-md-5">
-                    <label class="form-label text-secondary small fw-semibold">Filter by AI Category</label>
-                    <select name="category" class="form-select form-select-dark">
-                        <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
-                        {% for category in categories %}
-                        <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <button type="submit" class="btn-primary-glow w-100 justify-content-center">
-                        <i class="fas fa-filter"></i> Apply Filters
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Tickets Queue Header -->
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <h4 class="fw-bold mb-0">Support Tickets Feed</h4>
-                <p class="text-secondary small mb-0">Live triage queue sorted by newest submission</p>
-            </div>
-            <span class="badge rounded-pill" style="background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-subtle); padding: 6px 14px;">
-                {{ tickets|length }} matching
-            </span>
-        </div>
-
-        <!-- Tickets Stream -->
-        <div class="mb-5">
-            {% if tickets %}
-                {% for ticket in tickets %}
-                <div class="ticket-item-card {{ ticket.predicted_category.lower().replace(' ', '') }}">
-                    <div class="row align-items-start g-3">
-                        <div class="col-lg-9">
-                            <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-                                <span class="fw-bold ticket-title fs-6">Ticket #{{ ticket.id }}</span>
-                                
-                                <span class="badge-category {% if ticket.status == 'Open' %}badge-open{% else %}badge-resolved{% endif %}">
-                                    <i class="fas {% if ticket.status == 'Open' %}fa-clock{% else %}fa-check{% endif %}"></i>
-                                    {{ ticket.status }}
-                                </span>
-
-                                <span class="badge-category 
-                                    {% if ticket.predicted_category == 'Technical Support' %}badge-tech
-                                    {% elif ticket.predicted_category == 'Billing' %}badge-billing
-                                    {% elif ticket.predicted_category == 'Returns' %}badge-returns
-                                    {% elif ticket.predicted_category == 'General Inquiry' %}badge-inquiry
-                                    {% elif ticket.predicted_category == 'Out of Scope' %}badge-complaint
-                                    {% else %}badge-complaint{% endif %}">
-                                    <i class="fas 
-                                        {% if ticket.predicted_category == 'Technical Support' %}fa-code-branch
-                                        {% elif ticket.predicted_category == 'Billing' %}fa-receipt
-                                        {% elif ticket.predicted_category == 'Returns' %}fa-undo-alt
-                                        {% elif ticket.predicted_category == 'General Inquiry' %}fa-info-circle
-                                        {% elif ticket.predicted_category == 'Out of Scope' %}fa-ban
-                                        {% else %}fa-exclamation-triangle{% endif %}"></i>
-                                    {{ ticket.predicted_category }}
-                                </span>
-
-                                {% if ticket.is_out_of_scope or ticket.predicted_category == 'Out of Scope' %}
-                                <span class="badge bg-danger text-white small" style="font-size: 0.75rem;">
-                                    <i class="fas fa-ban me-1"></i> Out of Scope
-                                </span>
-                                {% endif %}
-
-                                {% if ticket.needs_human_review or ticket.confidence < 60 %}
-                                <span class="badge bg-warning text-dark small" style="font-size: 0.75rem;">
-                                    <i class="fas fa-user-clock me-1"></i> Needs Review
-                                </span>
-                                {% endif %}
-
-                                <span class="badge rounded-pill small" style="background: rgba(255,255,255,0.06); color: {% if ticket.confidence < 60 %}#f59e0b{% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
-                                    {{ "%.1f"|format(ticket.confidence) }}% confidence
-                                </span>
+        <div class="tab-content" id="adminTabsContent">
+            <!-- PANE 1: TICKETS FEED & AI TRIAGE -->
+            <div class="tab-pane fade show active" id="tickets-pane" role="tabpanel">
+                <!-- Top Stats Row (Ticket Overview) -->
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-2 col-md-4 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Total</span>
+                                <h3 class="fw-bold mb-0 mt-1">{{ stats|sum(attribute='total') or 0 }}</h3>
                             </div>
-
-                            <p class="ticket-text-preview mb-3" style="font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
-
-                            <div class="d-flex align-items-center flex-wrap gap-3 small text-muted">
-                                <span><i class="far fa-user me-1 text-secondary"></i> {{ ticket.username or 'Customer' }}</span>
-                                {% if ticket.email %}
-                                <span><i class="far fa-envelope me-1 text-secondary"></i> {{ ticket.email }}</span>
-                                {% endif %}
-                                <span><i class="far fa-clock me-1 text-secondary"></i> {{ ticket.created_at }}</span>
+                            <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; width: 36px; height: 36px;">
+                                <i class="fas fa-layer-group"></i>
                             </div>
-
-                            {% if ticket.resolution_notes %}
-                            <div class="mt-3 p-3 rounded" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
-                                <div class="small fw-bold text-success mb-1">
-                                    <i class="fas fa-check-circle me-1"></i> Resolution Summary:
-                                </div>
-                                <div class="small text-secondary">{{ ticket.resolution_notes }}</div>
-                                <div class="text-muted" style="font-size: 0.75rem; margin-top: 4px;">Resolved at: {{ ticket.resolved_at }}</div>
-                            </div>
-                            {% endif %}
                         </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Auto-Answered</span>
+                                <h3 class="fw-bold text-info mb-0 mt-1">{{ stats|sum(attribute='awaiting_customer') or 0 }}</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4; width: 36px; height: 36px;">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Escalated</span>
+                                <h3 class="fw-bold text-warning mb-0 mt-1">{{ stats|sum(attribute='escalated') or 0 }}</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; width: 36px; height: 36px;">
+                                <i class="fas fa-user-clock"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Open Queries</span>
+                                <h3 class="fw-bold mb-0 text-secondary mt-1">{{ stats|sum(attribute='open') or 0 }}</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; width: 36px; height: 36px;">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Resolved</span>
+                                <h3 class="fw-bold text-success mb-0 mt-1">{{ stats|sum(attribute='resolved') or 0 }}</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399; width: 36px; height: 36px;">
+                                <i class="fas fa-check-double"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Categories</span>
+                                <h3 class="fw-bold mb-0 gradient-text-cyan mt-1">{{ stats|length or 5 }}</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; width: 36px; height: 36px;">
+                                <i class="fas fa-tags"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                        <div class="col-lg-3 text-lg-end">
-                            {% if ticket.status == 'Open' %}
-                            <button class="btn btn-success btn-sm px-3 py-2 fw-semibold rounded-3 shadow-sm" onclick="resolveTicket('{{ ticket.id }}')">
-                                <i class="fas fa-check me-1"></i> Mark Resolved
+                <!-- Filter Controls -->
+                <div class="glass-card p-3 mb-4">
+                    <form method="GET" class="row g-2 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label text-secondary small fw-semibold">Filter by Status</label>
+                            <select name="status" class="form-select form-select-dark form-select-sm">
+                                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+                                <option value="Open" {% if status_filter == 'Open' %}selected{% endif %}>Open</option>
+                                <option value="awaiting_customer" {% if status_filter == 'awaiting_customer' %}selected{% endif %}>Awaiting Customer (Auto-Answered)</option>
+                                <option value="needs_review" {% if status_filter == 'needs_review' %}selected{% endif %}>Needs Review (Escalated)</option>
+                                <option value="Resolved" {% if status_filter == 'Resolved' %}selected{% endif %}>Resolved</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label text-secondary small fw-semibold">Filter by AI Category</label>
+                            <select name="category" class="form-select form-select-dark form-select-sm">
+                                <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
+                                {% for category in categories %}
+                                <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn-primary-glow btn-sm w-100 justify-content-center">
+                                <i class="fas fa-filter me-1"></i> Apply Filter
                             </button>
-                            {% else %}
-                            <span class="text-success small fw-semibold">
-                                <i class="fas fa-shield-check me-1"></i> Completed
-                            </span>
-                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Tickets Stream -->
+                <div class="mb-5">
+                    {% if tickets %}
+                        {% for ticket in tickets %}
+                        <div class="ticket-item-card {{ ticket.predicted_category.lower().replace(' ', '') }}">
+                            <div class="row align-items-start g-3">
+                                <div class="col-lg-8">
+                                    <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+                                        <span class="fw-bold ticket-title fs-6">Ticket #{{ ticket.id }}</span>
+                                        
+                                        <!-- Status Badge -->
+                                        {% if ticket.status == 'Resolved' %}
+                                        <span class="badge bg-success text-white small"><i class="fas fa-check-circle me-1"></i>Resolved</span>
+                                        {% elif ticket.status == 'awaiting_customer' %}
+                                        <span class="badge bg-info text-dark small"><i class="fas fa-robot me-1"></i>Auto-Answered (Awaiting Customer)</span>
+                                        {% elif ticket.status == 'needs_review' or ticket.needs_human_review %}
+                                        <span class="badge bg-warning text-dark small"><i class="fas fa-user-clock me-1"></i>Needs Human Review</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary text-white small"><i class="fas fa-clock me-1"></i>{{ ticket.status }}</span>
+                                        {% endif %}
+
+                                        <!-- Category Badge -->
+                                        <span class="badge rounded-pill" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
+                                            {{ ticket.predicted_category }}
+                                        </span>
+
+                                        <span class="badge rounded-pill small" style="background: rgba(255,255,255,0.06); color: {% if ticket.confidence < 60 %}#f59e0b{% else %}var(--text-muted){% endif %}; font-size: 0.75rem;">
+                                            {{ "%.1f"|format(ticket.confidence) }}% ML Conf
+                                        </span>
+                                    </div>
+
+                                    <!-- Customer Text Preview -->
+                                    <div class="p-3 rounded mb-2" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle);">
+                                        <div class="small text-secondary mb-1"><i class="fas fa-comment-alt me-1"></i> Customer Message:</div>
+                                        <p class="mb-0 small" style="white-space: pre-wrap;">{{ ticket.ticket_text }}</p>
+                                    </div>
+
+                                    <!-- AI Resolution Section if available -->
+                                    {% if ticket.resolution %}
+                                    <div class="p-3 rounded mb-2" style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2);">
+                                        <div class="d-flex align-items-center justify-content-between mb-1">
+                                            <span class="small fw-bold gradient-text"><i class="fas fa-sparkles me-1"></i> AI Proposed Resolution ({{ ticket.resolution.model_name }}):</span>
+                                            <span class="badge bg-dark border text-muted small" style="font-size: 0.7rem;">
+                                                Grounding: {{ ticket.resolution.grounding_status }}
+                                            </span>
+                                        </div>
+                                        <p class="small text-secondary mb-2" style="white-space: pre-wrap;">{{ ticket.resolution.proposed_solution[:250] }}{% if ticket.resolution.proposed_solution|length > 250 %}...{% endif %}</p>
+                                        
+                                        <!-- Sources Tags -->
+                                        {% if ticket.resolution.sources %}
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            <span class="small text-muted" style="font-size: 0.7rem;">Retrieved Sources:</span>
+                                            {% for src in ticket.resolution.sources %}
+                                            <span class="source-pill" title="Score: {{ src.relevance_score }}">
+                                                <i class="fas fa-file-alt"></i> {{ src.doc_title or 'Doc' }} ({{ "%.2f"|format(src.relevance_score) }})
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if ticket.review_reason %}
+                                    <div class="small text-warning mb-2">
+                                        <i class="fas fa-exclamation-circle me-1"></i> Review Reason: {{ ticket.review_reason }}
+                                    </div>
+                                    {% endif %}
+
+                                    <div class="d-flex align-items-center flex-wrap gap-3 small text-muted">
+                                        <span><i class="far fa-user me-1 text-secondary"></i> {{ ticket.username or 'Customer' }}</span>
+                                        {% if ticket.email %}
+                                        <span><i class="far fa-envelope me-1 text-secondary"></i> {{ ticket.email }}</span>
+                                        {% endif %}
+                                        <span><i class="far fa-clock me-1 text-secondary"></i> {{ ticket.created_at }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="col-lg-4 text-lg-end d-flex flex-column gap-2 justify-content-start">
+                                    <button class="btn btn-outline-info btn-sm px-3 py-2 fw-semibold rounded-3 text-start text-lg-end" onclick="openTraceabilityModal('{{ ticket.id }}')">
+                                        <i class="fas fa-search-plus me-1"></i> Inspect AI & Grounding
+                                    </button>
+
+                                    {% if ticket.status != 'Resolved' %}
+                                    <button class="btn btn-success btn-sm px-3 py-2 fw-semibold rounded-3 shadow-sm text-start text-lg-end" onclick="approveAIResolution('{{ ticket.id }}')">
+                                        <i class="fas fa-check-circle me-1"></i> Approve AI Response
+                                    </button>
+
+                                    <button class="btn btn-outline-warning btn-sm px-3 py-1 text-start text-lg-end" onclick="escalateTicket('{{ ticket.id }}')">
+                                        <i class="fas fa-user-shield me-1"></i> Escalate to Specialist
+                                    </button>
+
+                                    <button class="btn btn-outline-secondary btn-sm px-3 py-1 text-start text-lg-end" onclick="resolveTicket('{{ ticket.id }}')">
+                                        <i class="fas fa-edit me-1"></i> Custom Resolution Notes
+                                    </button>
+                                    {% else %}
+                                    <span class="text-success small fw-semibold">
+                                        <i class="fas fa-shield-check me-1"></i> Resolution Verified
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="glass-card p-5 text-center">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <h5>No Tickets Found</h5>
+                            <p class="text-secondary small mb-0">No tickets match the selected filter criteria.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- PANE 2: KNOWLEDGE BASE MANAGER -->
+            <div class="tab-pane fade" id="kb-pane" role="tabpanel">
+                <div class="row g-4 mb-4">
+                    <!-- Upload File Card -->
+                    <div class="col-lg-6">
+                        <div class="glass-card p-4 h-100">
+                            <h5 class="fw-bold mb-3"><i class="fas fa-cloud-upload-alt text-primary me-2"></i>Ingest Knowledge Document</h5>
+                            <p class="text-secondary small mb-3">Upload PDF manuals, Markdown troubleshooting guides, or TXT policy documents. Text is automatically chunked, sanitized, and vectorized in NeonDB pgvector.</p>
+                            <form id="kbUploadForm" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label text-secondary small fw-semibold">Document Title</label>
+                                    <input type="text" class="form-control form-control-dark" name="title" id="kbDocTitle" placeholder="e.g. Return & Exchange Policy 2026" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-secondary small fw-semibold">Target Support Category</label>
+                                    <select class="form-select form-select-dark" name="category" id="kbDocCategory" required>
+                                        <option value="Technical Support">Technical Support</option>
+                                        <option value="Billing">Billing</option>
+                                        <option value="Returns">Returns</option>
+                                        <option value="General Inquiry">General Inquiry</option>
+                                        <option value="Complaint">Complaint</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-secondary small fw-semibold">Select File (.pdf, .md, .txt)</label>
+                                    <input type="file" class="form-control form-control-dark" name="file" id="kbDocFile" accept=".pdf,.md,.markdown,.txt" required>
+                                </div>
+                                <button type="button" class="btn-primary-glow btn-sm w-100 py-2 justify-content-center" onclick="submitKBDocument()">
+                                    <i class="fas fa-upload me-1"></i> Ingest & Vectorize
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Manual FAQ Entry Card -->
+                    <div class="col-lg-6">
+                        <div class="glass-card p-4 h-100">
+                            <h5 class="fw-bold mb-3"><i class="fas fa-question-circle text-info me-2"></i>Add Authoritative FAQ Article</h5>
+                            <p class="text-secondary small mb-3">Add verified question-and-answer pairs directly to the active knowledge base for rapid RAG grounding.</p>
+                            <form id="faqForm">
+                                <div class="mb-3">
+                                    <label class="form-label text-secondary small fw-semibold">Frequently Asked Question</label>
+                                    <input type="text" class="form-control form-control-dark" id="faqQuestion" placeholder="e.g. How do I reset my account two-factor authentication?" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-secondary small fw-semibold">Support Category</label>
+                                    <select class="form-select form-select-dark" id="faqCategory" required>
+                                        <option value="Technical Support">Technical Support</option>
+                                        <option value="Billing">Billing</option>
+                                        <option value="Returns">Returns</option>
+                                        <option value="General Inquiry">General Inquiry</option>
+                                        <option value="Complaint">Complaint</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-secondary small fw-semibold">Official Resolution / Answer</label>
+                                    <textarea class="form-control form-control-dark" id="faqAnswer" rows="3" placeholder="Provide step-by-step authoritative troubleshooting instructions..." required></textarea>
+                                </div>
+                                <button type="button" class="btn btn-outline-info btn-sm w-100 py-2 fw-semibold" onclick="submitFAQ()">
+                                    <i class="fas fa-plus me-1"></i> Add FAQ to Vector Store
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
-                {% endfor %}
-            {% else %}
-                <div class="glass-card p-5 text-center">
-                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                    <h5>No Tickets Found</h5>
-                    <p class="text-secondary small mb-0">No customer queries match your selected filter criteria.</p>
+
+                <!-- Indexed Documents Table -->
+                <div class="glass-card p-4 mb-5">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0"><i class="fas fa-list me-2"></i>Indexed Knowledge Documents (NeonDB pgvector)</h5>
+                        <button class="btn btn-secondary-dark btn-sm" onclick="location.reload()">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh Table
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-dark-custom">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Source</th>
+                                    <th>Chunks</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if kb_documents %}
+                                    {% for doc in kb_documents %}
+                                    <tr>
+                                        <td>#{{ doc.id }}</td>
+                                        <td class="fw-semibold">{{ doc.title }}</td>
+                                        <td><span class="badge bg-dark border">{{ doc.category }}</span></td>
+                                        <td class="small text-secondary">{{ doc.source }}</td>
+                                        <td><span class="badge bg-primary text-white">{{ doc.chunk_count }} chunks</span></td>
+                                        <td>
+                                            {% if doc.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Toggle Active" onclick="toggleKBDoc('{{ doc.id }}', {{ 'false' if doc.is_active else 'true' }})">
+                                                <i class="fas {% if doc.is_active %}fa-eye-slash{% else %}fa-eye{% endif %}"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-info py-0 px-2" title="Reindex Embeddings" onclick="reindexKBDoc('{{ doc.id }}')">
+                                                <i class="fas fa-sync"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete Document" onclick="deleteKBDoc('{{ doc.id }}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" class="text-center py-4 text-muted">No knowledge base documents indexed yet.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            {% endif %}
+            </div>
+
+            <!-- PANE 3: SYSTEM ANALYTICS & METRICS -->
+            <div class="tab-pane fade" id="analytics-pane" role="tabpanel">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Resolution Success Rate</span>
+                                <h3 class="fw-bold text-success mb-0 mt-1" id="an-res-rate">--%</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">
+                                <i class="fas fa-chart-pie"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Escalation Rate</span>
+                                <h3 class="fw-bold text-warning mb-0 mt-1" id="an-esc-rate">--%</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Customer Satisfaction</span>
+                                <h3 class="fw-bold gradient-text-cyan mb-0 mt-1" id="an-csat">-- / 5.0</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
+                                <i class="fas fa-star"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="admin-stat-card">
+                            <div>
+                                <span class="text-secondary small fw-semibold text-uppercase">Active Vector Chunks</span>
+                                <h3 class="fw-bold text-info mb-0 mt-1" id="an-kb-chunks">--</h3>
+                            </div>
+                            <div class="stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">
+                                <i class="fas fa-vector-square"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Category Breakdown Grid -->
+                <div class="glass-card p-4 mb-4">
+                    <h5 class="fw-bold mb-3"><i class="fas fa-tags me-2"></i>Live Category Distribution & Confidence (NeonDB)</h5>
+                    <div class="table-responsive">
+                        <table class="table table-dark-custom mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Tickets Received</th>
+                                    <th>Average Confidence</th>
+                                    <th>Distribution</th>
+                                </tr>
+                            </thead>
+                            <tbody id="an-category-body">
+                                <tr><td colspan="4" class="text-center text-muted">Loading live metrics...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Resolve Ticket Modal -->
+    <!-- AI Resolution & Traceability Modal -->
+    <div class="modal fade" id="traceabilityModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content modal-content-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fas fa-brain text-primary me-2"></i>AI Resolution Traceability & Audit
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4" id="traceabilityModalBody">
+                    <div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i> Loading AI resolution...</div>
+                </div>
+                <div class="modal-footer p-3">
+                    <button type="button" class="btn-secondary-dark btn-sm px-3" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-outline-info btn-sm px-3" id="modalRegenBtn" onclick="regenerateAIResolution()">
+                        <i class="fas fa-sync me-1"></i> Regenerate AI
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm px-4 fw-semibold" id="modalApproveBtn" onclick="approveFromModal()">
+                        <i class="fas fa-check me-1"></i> Approve & Resolve
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Resolve Modal -->
     <div class="modal fade" id="resolveModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content modal-content-dark">
                 <div class="modal-header">
                     <h5 class="modal-title fw-bold">
-                        <i class="fas fa-check-circle text-success me-2"></i>Resolve Ticket
+                        <i class="fas fa-check-circle text-success me-2"></i>Custom Resolution Notes
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
@@ -285,8 +615,8 @@
                         <input type="hidden" id="resolveTicketId">
                         <div class="mb-3">
                             <label for="resolutionNotes" class="form-label text-secondary small fw-semibold">Resolution Notes for Customer</label>
-                            <textarea class="form-control form-control-dark" id="resolutionNotes" rows="4" placeholder="Detail the fix, steps taken, or refund confirmation provided to the customer..." required></textarea>
-                            <div class="form-text text-muted small mt-1">These notes will be recorded in the audit log and emailed to the user.</div>
+                            <textarea class="form-control form-control-dark" id="resolutionNotes" rows="4" placeholder="Detail the resolution steps taken or refund confirmation provided..." required></textarea>
+                            <div class="form-text text-muted small mt-1">Recorded in audit log and emailed to customer.</div>
                         </div>
                     </form>
                 </div>
@@ -302,45 +632,274 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let currentTicketId = null;
-        
+        let currentModalTicketId = null;
+
         function resolveTicket(ticketId) {
-            currentTicketId = ticketId;
+            currentModalTicketId = ticketId;
             document.getElementById('resolveTicketId').value = ticketId;
             document.getElementById('resolutionNotes').value = '';
             new bootstrap.Modal(document.getElementById('resolveModal')).show();
         }
-        
+
         function submitResolution() {
-            const resolutionNotes = document.getElementById('resolutionNotes').value.trim();
-            
-            if (!resolutionNotes) {
-                alert('Please enter resolution notes');
-                return;
-            }
-            
+            const notes = document.getElementById('resolutionNotes').value.trim();
+            if (!notes) { alert('Please enter resolution notes'); return; }
             fetch('/admin/resolve_ticket', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    ticket_id: currentTicketId,
-                    resolution_notes: resolutionNotes
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticket_id: currentModalTicketId, resolution_notes: notes })
             })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
+                if (data.success) { alert('Ticket resolved successfully!'); location.reload(); }
+                else { alert('Error: ' + data.error); }
+            });
+        }
+
+        function approveAIResolution(ticketId) {
+            if (!confirm('Approve the proposed AI solution and mark Ticket #' + ticketId + ' as Resolved?')) return;
+            fetch('/api/ticket/' + ticketId + '/approve_resolution', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { alert('Resolution approved successfully!'); location.reload(); }
+                else { alert('Error: ' + data.error); }
+            });
+        }
+
+        function escalateTicket(ticketId) {
+            const reason = prompt('Enter reason for escalating this ticket to human specialist review:', 'Requires manual review by Tier-2 specialist.');
+            if (reason === null) return;
+            fetch('/api/ticket/' + ticketId + '/escalate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { alert(data.message); location.reload(); }
+                else { alert('Error: ' + data.error); }
+            });
+        }
+
+        function openTraceabilityModal(ticketId) {
+            currentModalTicketId = ticketId;
+            const modalEl = document.getElementById('traceabilityModal');
+            const modal = new bootstrap.Modal(modalEl);
+            document.getElementById('traceabilityModalBody').innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i> Loading AI resolution...</div>';
+            modal.show();
+
+            fetch('/api/ticket/' + ticketId + '/resolution')
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) {
+                    document.getElementById('traceabilityModalBody').innerHTML = '<div class="alert alert-danger">' + res.error + '</div>';
+                    return;
+                }
+                const t = res.ticket;
+                const rData = res.resolution;
+                const events = res.events || [];
+                const fb = res.feedback;
+
+                let sourcesHtml = '<p class="text-muted small">No knowledge base sources retrieved.</p>';
+                if (rData && rData.sources && rData.sources.length > 0) {
+                    sourcesHtml = '<div class="list-group list-group-flush">';
+                    rData.sources.forEach(s => {
+                        sourcesHtml += `
+                            <div class="list-group-item bg-dark border-secondary p-2 mb-2 rounded">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-bold small text-info"><i class="fas fa-file-alt me-1"></i> ${s.doc_title || 'Document'}</span>
+                                    <span class="badge bg-primary">Relevance: ${(s.relevance_score || 0).toFixed(3)}</span>
+                                </div>
+                                <div class="small text-secondary" style="font-size:0.8rem;">${s.chunk_text || ''}</div>
+                            </div>
+                        `;
+                    });
+                    sourcesHtml += '</div>';
+                }
+
+                let eventsHtml = '<p class="text-muted small">No audit history recorded.</p>';
+                if (events.length > 0) {
+                    eventsHtml = '<ul class="list-unstyled mb-0">';
+                    events.forEach(e => {
+                        eventsHtml += `<li class="small text-secondary mb-1"><i class="fas fa-chevron-right me-1 text-primary"></i> <strong>${e.new_status}:</strong> ${e.event_description} <span class="text-muted" style="font-size:0.7rem;">(${e.created_at})</span></li>`;
+                    });
+                    eventsHtml += '</ul>';
+                }
+
+                let feedbackHtml = '';
+                if (fb) {
+                    feedbackHtml = `
+                        <div class="p-3 rounded mb-3" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
+                            <div class="fw-bold text-success small mb-1"><i class="fas fa-star me-1"></i> Customer Feedback: Rating ${fb.feedback_rating}/5 (Resolved: ${fb.was_resolved ? 'Yes' : 'No'})</div>
+                            <div class="small text-secondary">${fb.feedback_comment || 'No comment provided.'}</div>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('traceabilityModalBody').innerHTML = `
+                    <div class="mb-3">
+                        <span class="badge bg-secondary me-2">Ticket #${t.id}</span>
+                        <span class="badge bg-primary me-2">${t.predicted_category} (${(t.confidence).toFixed(1)}% ML Conf)</span>
+                        <span class="badge bg-info text-dark">Status: ${t.status}</span>
+                    </div>
+
+                    <div class="p-3 rounded mb-3" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle);">
+                        <div class="small text-secondary fw-bold mb-1">Customer Message:</div>
+                        <div class="small">${t.ticket_text}</div>
+                    </div>
+
+                    ${feedbackHtml}
+
+                    <div class="p-3 rounded mb-3" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25);">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold gradient-text small"><i class="fas fa-robot me-1"></i> LLM Proposed Solution:</span>
+                            <span class="badge bg-dark border text-muted">${rData ? rData.model_name : 'N/A'} | Grounding: ${rData ? rData.grounding_status : 'N/A'}</span>
+                        </div>
+                        <div class="small mb-2" style="white-space: pre-wrap;">${rData ? rData.proposed_solution : 'No resolution generated yet.'}</div>
+                        ${rData && rData.escalation_reason ? `<div class="small text-warning"><i class="fas fa-info-circle me-1"></i> Escalation Reason: ${rData.escalation_reason}</div>` : ''}
+                    </div>
+
+                    <div class="mb-3">
+                        <h6 class="fw-bold small mb-2"><i class="fas fa-layer-group me-1 text-primary"></i> Grounded Knowledge Sources:</h6>
+                        ${sourcesHtml}
+                    </div>
+
+                    <div>
+                        <h6 class="fw-bold small mb-2"><i class="fas fa-history me-1 text-secondary"></i> Status Audit Trail:</h6>
+                        <div class="p-3 rounded" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle);">${eventsHtml}</div>
+                    </div>
+                `;
+            });
+        }
+
+        function regenerateAIResolution() {
+            if (!currentModalTicketId) return;
+            document.getElementById('modalRegenBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+            fetch('/api/ticket/' + currentModalTicketId + '/regenerate', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('modalRegenBtn').innerHTML = '<i class="fas fa-sync me-1"></i> Regenerate AI';
                 if (data.success) {
-                    alert('Ticket resolved successfully!' + (data.email_sent ? ' Email sent to user.' : ''));
-                    location.reload();
+                    alert('Resolution regenerated!');
+                    openTraceabilityModal(currentModalTicketId);
                 } else {
                     alert('Error: ' + data.error);
                 }
+            });
+        }
+
+        function approveFromModal() {
+            if (currentModalTicketId) {
+                approveAIResolution(currentModalTicketId);
+            }
+        }
+
+        function submitKBDocument() {
+            const fileInput = document.getElementById('kbDocFile');
+            const titleInput = document.getElementById('kbDocTitle');
+            const catInput = document.getElementById('kbDocCategory');
+            if (!fileInput.files.length) { alert('Please select a document file'); return; }
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('title', titleInput.value.trim());
+            formData.append('category', catInput.value);
+
+            fetch('/admin/kb/upload', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { alert(data.message); location.reload(); }
+                else { alert('Error: ' + data.error); }
+            });
+        }
+
+        function submitFAQ() {
+            const q = document.getElementById('faqQuestion').value.trim();
+            const a = document.getElementById('faqAnswer').value.trim();
+            const cat = document.getElementById('faqCategory').value;
+            if (!q || !a) { alert('Please fill both question and answer'); return; }
+
+            fetch('/admin/kb/add_faq', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: q, answer: a, category: cat })
             })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error resolving ticket');
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { alert(data.message); location.reload(); }
+                else { alert('Error: ' + data.error); }
+            });
+        }
+
+        function toggleKBDoc(docId, newActive) {
+            fetch('/admin/kb/toggle/' + docId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: newActive })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert('Error: ' + data.error);
+            });
+        }
+
+        function reindexKBDoc(docId) {
+            if (!confirm('Re-chunk and regenerate vector embeddings for Document #' + docId + '?')) return;
+            fetch('/admin/kb/reindex/' + docId, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { alert(data.message); location.reload(); }
+                else { alert('Error: ' + data.error); }
+            });
+        }
+
+        function deleteKBDoc(docId) {
+            if (!confirm('Permanently delete Document #' + docId + ' and all its vector chunks from NeonDB?')) return;
+            fetch('/admin/kb/delete/' + docId, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) { alert(data.message); location.reload(); }
+                else { alert('Error: ' + data.error); }
+            });
+        }
+
+        function loadLiveAnalytics() {
+            fetch('/admin/analytics')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                const m = data.metrics;
+                document.getElementById('an-res-rate').innerText = m.resolution_rate + '%';
+                document.getElementById('an-esc-rate').innerText = m.escalation_rate + '%';
+                document.getElementById('an-csat').innerText = m.customer_satisfaction + ' / 5.0';
+                document.getElementById('an-kb-chunks').innerText = m.active_kb_chunks;
+
+                let catHtml = '';
+                if (m.category_distribution && m.category_distribution.length > 0) {
+                    m.category_distribution.forEach(c => {
+                        const pct = m.total_tickets > 0 ? ((c.count / m.total_tickets) * 100).toFixed(1) : 0;
+                        catHtml += `
+                            <tr>
+                                <td class="fw-bold">${c.predicted_category}</td>
+                                <td>${c.count}</td>
+                                <td>${(c.avg_conf || 0).toFixed(1)}%</td>
+                                <td>
+                                    <div class="progress" style="height: 6px; background: rgba(255,255,255,0.06);">
+                                        <div class="progress-bar bg-primary" style="width: ${pct}%"></div>
+                                    </div>
+                                    <span class="small text-muted" style="font-size:0.7rem;">${pct}%</span>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    catHtml = '<tr><td colspan="4" class="text-center text-muted">No category data recorded yet.</td></tr>';
+                }
+                document.getElementById('an-category-body').innerHTML = catHtml;
             });
         }
     </script>
